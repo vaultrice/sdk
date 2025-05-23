@@ -1,0 +1,42 @@
+{
+  "name": "non-local-storage",
+  "globalName": "NonLocalStorage",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "browser": "./dist/umd/index.js",
+  "types": "./types/index.d.ts",
+  "exports": {
+    "./package.json": "./package.json",
+    ".": {
+      "require": "./dist/cjs/index.js",
+      "default": "./dist/esm/index.js"
+    },
+    "./cjs": {
+      "default": "./dist/cjs/index.js"
+    },
+    "./esm": {
+      "default": "./dist/esm/index.js"
+    }
+  },
+  "scripts": {
+    "build:deno": "rm -rf dist/deno && cp -r src dist/deno && node scripts/add-ts-extension.js dist/deno",
+    "build": "rm -rf dist && rollup -c && echo '{\"type\":\"commonjs\"}' > dist/cjs/package.json && rm -rf types && tsc -d --declarationDir types --declarationMap --emitDeclarationOnly && npm run build:deno",
+    "lint": "eslint .",
+    "test": "npm run lint && vitest"
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@rollup/plugin-terser": "0.4.4",
+    "eslint": "9.27.0",
+    "mock-socket": "9.3.1",
+    "neostandard": "0.12.1",
+    "rollup": "4.41.0",
+    "rollup-plugin-typescript2": "0.36.0",
+    "typescript": "5.8.3",
+    "vitest": "3.1.4"
+  }
+}

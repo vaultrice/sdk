@@ -1,0 +1,1 @@
+const o="NON_LOCAL_STORAGE_LOCAL_ID",e=()=>"undefined"!=typeof window&&window.localStorage?window.localStorage.getItem(o):null,n=e=>{"undefined"!=typeof window&&window.localStorage&&window.localStorage.setItem(o,e)};export{e as getLocalId,n as setLocalId};
