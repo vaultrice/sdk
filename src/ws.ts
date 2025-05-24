@@ -64,32 +64,39 @@ export default class WebSocketFunctions extends Base {
       ws.addEventListener('close', () => hndl())
     }
 
-    if (event === 'message') {
-      const maybeDecryptAndHandle = (msg: any, hndl: any) => {
-        if (msg.keyVersion === undefined) return hndl(msg.payload)
-        if (msg.keyVersion > -1) {
-          // @ts-ignore
-          if (!this.passphrase) return this.errorHandlers.map((h) => h(new Error('Encrypted data, but no passhprase configured!')))
-          // @ts-ignore
-          if (!this.symKey) return this.errorHandlers.map((h) => h(new Error('Encrypted data, but init() not called!')))
-          // @ts-ignore
-          if (msg.keyVersion !== this?.metadata?.keyVersion) return this.errorHandlers.map((h) => h(new Error('Wrong keyVersion! Call init() again!')))
-          // @ts-ignore
-          decrypt(this.symKey, msg.payload).then((decrypted) => {
+    const maybeDecryptAndHandle = (msg: any, hndl: any, completePayload: boolean = false) => {
+      if (msg.keyVersion === undefined) return hndl(msg.payload)
+      if (msg.keyVersion > -1) {
+        // @ts-ignore
+        if (!this.passphrase) return this.errorHandlers.map((h) => h(new Error('Encrypted data, but no passhprase configured!')))
+        // @ts-ignore
+        if (!this.symKey) return this.errorHandlers.map((h) => h(new Error('Encrypted data, but init() not called!')))
+        // @ts-ignore
+        if (msg.keyVersion !== this?.metadata?.keyVersion) return this.errorHandlers.map((h) => h(new Error('Wrong keyVersion! Call init() again!')))
+        let toDec = msg.payload.value
+        if (completePayload) toDec = msg.payload
+        // @ts-ignore
+        decrypt(this.symKey, toDec).then((decrypted) => {
+          if (completePayload) {
             msg.payload = JSON.parse(decrypted)
-            hndl(msg.payload)
-          }).catch((err) => {
-            // @ts-ignore
-            this.errorHandlers.map((h) => h(err))
-          })
-        }
+          } else {
+            msg.payload.value = JSON.parse(decrypted)
+          }
+          hndl(msg.payload)
+        }).catch((err) => {
+          // @ts-ignore
+          this.errorHandlers.map((h) => h(err))
+        })
       }
+    }
+
+    if (event === 'message') {
       if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
       const hndl = handlerOrName as (msg: JSONObj) => void
       ws.addEventListener('message', (evt) => {
         const msg = JSON.parse(evt.data)
         if (msg.event === 'message') {
-          maybeDecryptAndHandle(msg, hndl)
+          maybeDecryptAndHandle(msg, hndl, true)
         }
       })
     }
