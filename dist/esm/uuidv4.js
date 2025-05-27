@@ -1,1 +1,1 @@
-var x=()=>"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,(x=>{const r=16*Math.random()|0;return("x"===x?r:3&r|8).toString(16)}));export{x as default};
+let x;x="undefined"!=typeof crypto&&"function"==typeof crypto.randomUUID?()=>crypto.randomUUID():()=>"xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g,(x=>{const t=16*Math.random()|0;return("x"===x?t:3&t|8).toString(16)}));var t=x;export{t as default};

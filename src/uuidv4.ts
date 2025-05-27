@@ -1,4 +1,4 @@
-let fn
+let fn: () => string
 if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
   fn = () => crypto.randomUUID()
 } else {

@@ -19,7 +19,7 @@ async function deriveSymmetricKey (passphrase, objectId, salt, iterations = 1000
     'raw', enc.encode(passphrase + ':' + objectId), 'PBKDF2', false, ['deriveKey']
   )
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt, iterations, hash: 'SHA-512' },
     baseKey,
     { name: 'AES-GCM', length: 256 },
     true,               // extractable to allow export

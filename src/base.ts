@@ -10,11 +10,7 @@ function getId () {
     return localId
   }
   // if not, generate a new id...
-  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
-    return `${crypto.randomUUID()}-${crypto.randomUUID()}`
-  } else {
-    return `${uuidv4()}-${uuidv4()}`
-  }
+  return `${uuidv4()}-${uuidv4()}`
 }
 
 export default class Base {
