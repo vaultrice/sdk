@@ -44,8 +44,7 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
       delete objects[this.credentials.projectId][objectId][propName].ttl
       send({ event: 'setItem', payload: { prop: propName, ...objects[this.credentials.projectId][objectId][propName] }, keyVersion })
       return {
-        // @ts-ignore
-        expiresAt: body?.expiresAt
+        expiresAt: (body as any)?.expiresAt
       }
     }
 
@@ -140,10 +139,8 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
     return undefined
 
     function send (msg) {
-      // @ts-ignore
-      if (typeof NonLocalStorage.getWebSocketServer === 'function') {
-        // @ts-ignore
-        const srv = NonLocalStorage.getWebSocketServer()
+      if (typeof (NonLocalStorage as any).getWebSocketServer === 'function') {
+        const srv = (NonLocalStorage as any).getWebSocketServer()
         srv.clients().forEach((client) => {
           client.send(JSON.stringify(msg))
         })

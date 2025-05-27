@@ -5,7 +5,7 @@ import { WebSocket, Server } from 'mock-socket'
 const ws = {}
 let server
 
-// @ts-ignored
+// @ts-ignore
 NonLocalStorage.getWebSocketServer = function (): WS {
   if (server) return server
   server = new Server('ws://localhost:1234')

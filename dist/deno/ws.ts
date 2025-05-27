@@ -5,27 +5,22 @@ import { encrypt, decrypt } from './encryption'
 export default class WebSocketFunctions extends Base {
   constructor (credentials: { apiKey: string, apiSecret: string, projectId: string }, id?: string, options?: { passphrase?: string }) {
     super(credentials, id, options && { passphrase: options?.passphrase })
-    // @ts-ignore
-    this.errorHandlers = []
+    ;(this as any).errorHandlers = []
   }
 
   async send (msg: JSONObj, options: { transport?: 'ws' | 'http' } = { transport: 'ws' }): Promise<undefined> {
-    // @ts-ignore
-    if (this.passphrase && !this.symKey) throw new Error('Call init() first!')
+    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call init() first!')
 
-    // @ts-ignore
-    const msgToSend = this.symKey ? await encrypt(this.symKey, JSON.stringify(msg)) : msg
+    const msgToSend = (this as any).symKey ? await encrypt((this as any).symKey, JSON.stringify(msg)) : msg
 
     if (options.transport === 'http') {
-      // @ts-ignore
-      await this.request('POST', `/message/${this.id}`, msgToSend, this?.metadata?.keyVersion)
+      await this.request('POST', `/message/${this.id}`, msgToSend, (this as any)?.metadata?.keyVersion)
       return
     }
 
     const ws = this.getWebSocket()
     const wrappedMsg = { event: 'message', payload: msgToSend }
-    // @ts-ignore
-    if (this?.metadata?.keyVersion > -1) wrappedMsg.keyVersion = this?.metadata?.keyVersion
+    if ((this as any)?.metadata?.keyVersion > -1) (wrappedMsg as any).keyVersion = (this as any)?.metadata?.keyVersion
     ws.send(JSON.stringify(wrappedMsg))
   }
 
@@ -47,8 +42,7 @@ export default class WebSocketFunctions extends Base {
     if (event === 'error') {
       if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
       const hndl = handlerOrName as (e: Error) => void
-      // @ts-ignore
-      this.errorHandlers.push(hndl)
+      (this as any).errorHandlers.push(hndl)
       ws.addEventListener('error', (evt: any) => hndl(new Error(evt?.message)))
     }
 
@@ -67,16 +61,12 @@ export default class WebSocketFunctions extends Base {
     const maybeDecryptAndHandle = (msg: any, hndl: any, completePayload: boolean = false) => {
       if (msg.keyVersion === undefined) return hndl(msg.payload)
       if (msg.keyVersion > -1) {
-        // @ts-ignore
-        if (!this.passphrase) return this.errorHandlers.map((h) => h(new Error('Encrypted data, but no passhprase configured!')))
-        // @ts-ignore
-        if (!this.symKey) return this.errorHandlers.map((h) => h(new Error('Encrypted data, but init() not called!')))
-        // @ts-ignore
-        if (msg.keyVersion !== this?.metadata?.keyVersion) return this.errorHandlers.map((h) => h(new Error('Wrong keyVersion! Call init() again!')))
+        if (!(this as any).passphrase) return (this as any).errorHandlers.map((h: (e: Error) => {}) => h(new Error('Encrypted data, but no passhprase configured!')))
+        if (!(this as any).symKey) return (this as any).errorHandlers.map((h: (e: Error) => {}) => h(new Error('Encrypted data, but init() not called!')))
+        if (msg.keyVersion !== (this as any)?.metadata?.keyVersion) return (this as any).errorHandlers.map((h: (e: Error) => {}) => h(new Error('Wrong keyVersion! Call init() again!')))
         let toDec = msg.payload.value
         if (completePayload) toDec = msg.payload
-        // @ts-ignore
-        decrypt(this.symKey, toDec).then((decrypted) => {
+        decrypt((this as any).symKey, toDec).then((decrypted) => {
           if (completePayload) {
             msg.payload = JSON.parse(decrypted)
           } else {
@@ -84,8 +74,7 @@ export default class WebSocketFunctions extends Base {
           }
           hndl(msg.payload)
         }).catch((err) => {
-          // @ts-ignore
-          this.errorHandlers.map((h) => h(err))
+          (this as any).errorHandlers.map((h: (e: Error) => {}) => h(err))
         })
       }
     }
@@ -102,25 +91,6 @@ export default class WebSocketFunctions extends Base {
     }
 
     if (event === 'setItem') {
-      const maybeDecryptAndHandle = (msg: any, hndl: any) => {
-        if (msg.keyVersion === undefined) return hndl(msg.payload)
-        if (msg.keyVersion > -1) {
-          // @ts-ignore
-          if (!this.passphrase) return this.errorHandlers.map((h) => h(new Error('Encrypted data, but no passhprase configured!')))
-          // @ts-ignore
-          if (!this.symKey) return this.errorHandlers.map((h) => h(new Error('Encrypted data, but init() not called!')))
-          // @ts-ignore
-          if (msg.keyVersion !== this?.metadata?.keyVersion) return this.errorHandlers.map((h) => h(new Error('Wrong keyVersion! Call init() again!')))
-          // @ts-ignore
-          decrypt(this.symKey, msg.payload.value).then((decrypted) => {
-            msg.payload.value = JSON.parse(decrypted)
-            hndl(msg.payload)
-          }).catch((err) => {
-            // @ts-ignore
-            this.errorHandlers.map((h) => h(err))
-          })
-        }
-      }
       if (typeof handler === 'undefined') {
         if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
         const hndl = handlerOrName as (item: ItemType & { prop: string }) => void
@@ -160,24 +130,18 @@ export default class WebSocketFunctions extends Base {
   }
 
   disconnect () {
-    // @ts-ignore
-    if (!this.ws) return
-    // @ts-ignore
-    this.ws.close()
-    // @ts-ignore
-    delete this.ws
+    if (!(this as any).ws) return
+    (this as any).ws.close()
+    delete (this as any).ws
   }
 
   getWebSocket (): WebSocket {
-    // @ts-ignore
-    if (this.ws) return this.ws
+    if ((this as any).ws) return (this as any).ws
 
     const wsBasePath = WebSocketFunctions.basePath.replace('http', 'ws')
-    // @ts-ignore
-    const ws = this.ws = new WebSocket(`${wsBasePath}/project/${this.credentials.projectId}/ws/${this.id}`, encodeURIComponent(`Basic ${btoa(`${this.credentials.apiKey}:${this.credentials.apiSecret}`)}`))
+    const ws = (this as any).ws = new WebSocket(`${wsBasePath}/project/${(this as any).credentials.projectId}/ws/${this.id}`, encodeURIComponent(`Basic ${btoa(`${(this as any).credentials.apiKey}:${(this as any).credentials.apiSecret}`)}`))
     ws.addEventListener('close', () => {
-      // @ts-ignore
-      delete this.ws
+      delete (this as any).ws
     })
     return ws
   }

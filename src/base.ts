@@ -6,9 +6,7 @@ import { JSONObj } from './types'
 function getId () {
   // if no id provided, try to check if there is one in the real local storage...
   const localId = getLocalId()
-  if (localId) {
-    return localId
-  }
+  if (localId) return localId
   // if not, generate a new id...
   return `${uuidv4()}-${uuidv4()}`
 }
@@ -29,19 +27,16 @@ export default class Base {
     // try to save that id locally
     setLocalId(this.id as string)
 
-    // @ts-ignore
-    this.credentials = credentials
+    ;(this as any).credentials = credentials
 
-    // @ts-ignore
-    if (options?.passphrase) this.passphrase = options?.passphrase
+    if (options?.passphrase) (this as any).passphrase = options?.passphrase
   }
 
   /**
    * Only mandatory if using e2e encryption
    */
   async init () {
-    // @ts-ignore
-    if (!this.passphrase) throw new Error('No passphrase passed! This function is only allowed with e2e encryption!')
+    if (!(this as any).passphrase) throw new Error('No passphrase passed! This function is only allowed with e2e encryption!')
 
     // fetch object metadata (if not existing on server side, generate salt + keyVersion)
     const response = await this.request('GET', `/cache-meta/${this.id}`)
@@ -49,29 +44,27 @@ export default class Base {
     // on server side check if the e2e feature is enabled/paid, if not, do not return metadata and throw an error here
     // throw new Error('E2E feature not available!')
 
-    // @ts-ignore
-    this.metadata = {
+    (this as any).metadata = {
       salt: Uint8Array.from(atob(metadata?.salt as string), c => c.charCodeAt(0)),
       keyVersion: metadata?.keyVersion as number
     }
 
-    // @ts-ignore
-    this.symKey = await deriveSymmetricKey(this.passphrase, this.id, this.metadata.salt)
+    ;(this as any).symKey = await deriveSymmetricKey((this as any).passphrase, this.id, (this as any).metadata.salt)
   }
 
   async request (method: string, path: string, body?: JSONObj | string | string[], keyVersion?: number | undefined): Promise<string | string[] | JSONObj | undefined> {
     const isStringBody = typeof body === 'string'
     const headers: {
       Authorization: string; [key: string]: string
-    } = { // @ts-ignore
-      Authorization: `Basic ${btoa(`${this.credentials.apiKey}:${this.credentials.apiSecret}`)}`
+    } = {
+      Authorization: `Basic ${btoa(`${(this as any).credentials.apiKey}:${(this as any).credentials.apiSecret}`)}`
     }
     if (keyVersion !== undefined && keyVersion > -1) {
       headers['X-Enc-KV'] = keyVersion.toString()
     }
     if (body) headers['Content-Type'] = isStringBody ? 'text/plain' : 'application/json'
-    const response = await fetch( // @ts-ignore
-      `${Base.basePath}/project/${this.credentials.projectId}${path}`, {
+    const response = await fetch(
+      `${Base.basePath}/project/${(this as any).credentials.projectId}${path}`, {
         method,
         headers,
         body: isStringBody ? body : JSON.stringify(body)

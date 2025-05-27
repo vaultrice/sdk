@@ -81,8 +81,7 @@ describe('NonLocalStorage', () => {
   describe('websocket part usage', () => {
     it('should work as expected', async () => {
       const receivedMesssagesOnServer: any[] = []
-      // @ts-ignored
-      const server = NonLocalStorage.getWebSocketServer()
+      const server = (NonLocalStorage as any).getWebSocketServer()
       server.on('connection', (socket) => {
         socket.on('message', (data) => {
           receivedMesssagesOnServer.push(JSON.parse(data))
@@ -130,8 +129,7 @@ describe('NonLocalStorage', () => {
   describe('websocket part usage (item events)', () => {
     it('should work as expected', async () => {
       const receivedMesssagesOnServer: any[] = []
-      // @ts-ignored
-      const server = NonLocalStorage.getWebSocketServer()
+      const server = (NonLocalStorage as any).getWebSocketServer()
       server.on('connection', (socket) => {
         socket.on('message', (data) => {
           receivedMesssagesOnServer.push(JSON.parse(data))
@@ -230,8 +228,7 @@ describe('NonLocalStorage', () => {
   describe('e2e usage with websockets stuff', () => {
     it('should work as expected', async () => {
       const receivedMesssagesOnServer: any[] = []
-      // @ts-ignored
-      const server = NonLocalStorage.getWebSocketServer()
+      const server = (NonLocalStorage as any).getWebSocketServer()
       server.on('connection', (socket) => {
         socket.on('message', (data) => {
           receivedMesssagesOnServer.push(JSON.parse(data))
