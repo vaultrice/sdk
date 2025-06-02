@@ -8,6 +8,7 @@ const objects = {}
 
 vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
   async function (method: string, path: string, body?: JSONObj | string | string[], keyVersion?: number | undefined): Promise<string | string[] | JSONObj | undefined> {
+    keyVersion ||= (this as any)?.metadata?.keyVersion
     const pathParts = path.split('/')
     const objectId = pathParts[2]
 

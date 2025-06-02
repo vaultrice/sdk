@@ -59,6 +59,7 @@ export default class Base {
     } = {
       Authorization: `Basic ${btoa(`${(this as any).credentials.apiKey}:${(this as any).credentials.apiSecret}`)}`
     }
+    keyVersion ||= (this as any)?.metadata?.keyVersion
     if (keyVersion !== undefined && keyVersion > -1) {
       headers['X-Enc-KV'] = keyVersion.toString()
     }

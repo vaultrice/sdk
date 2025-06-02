@@ -14,7 +14,7 @@ export default class WebSocketFunctions extends Base {
     const msgToSend = (this as any).symKey ? await encrypt((this as any).symKey, JSON.stringify(msg)) : msg
 
     if (options.transport === 'http') {
-      await this.request('POST', `/message/${this.id}`, msgToSend, (this as any)?.metadata?.keyVersion)
+      await this.request('POST', `/message/${this.id}`, msgToSend)
       return
     }
 

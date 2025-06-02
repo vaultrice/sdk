@@ -29,7 +29,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
     const response = await this.request('POST', `/cache/${this.id}/${name}`, {
       value: valueToStore,
       ttl
-    }, (this as any)?.metadata?.keyVersion)
+    })
     const item = response as JSONObj
 
     return { expiresAt: item?.expiresAt as number }
@@ -48,7 +48,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
       items[name].ttl ||= this.ttl
     }
 
-    const response = await this.request('POST', `/cache/${this.id}`, items, (this as any)?.metadata?.keyVersion)
+    const response = await this.request('POST', `/cache/${this.id}`, items)
     const r = response as JSONObj
     return Object.keys(r).reduce<SetItemsType>((prev, name) => {
       prev[name] = {
@@ -62,7 +62,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
     if (!name) throw new Error('No name passed!')
     if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call init() first!')
 
-    const response = await this.request('GET', `/cache/${this.id}/${name}`, undefined, (this as any)?.metadata?.keyVersion)
+    const response = await this.request('GET', `/cache/${this.id}/${name}`)
     const item = response as JSONObj
 
     const v = item?.value
@@ -80,7 +80,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
     if (!names || names.length === 0) throw new Error('No names passed!')
     if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call init() first!')
 
-    const response = await this.request('POST', `/cache-query/${this.id}`, names, (this as any)?.metadata?.keyVersion)
+    const response = await this.request('POST', `/cache-query/${this.id}`, names)
     const items = response as JSONObj
 
     if (Object.keys(items).length === 0) return
@@ -105,7 +105,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
   async getAllItems (options?: { prefix?: string }): Promise<ItemsType | undefined> {
     if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call init() first!')
 
-    const response = await this.request('GET', `/cache/${this.id}${options?.prefix ? `?prefix=${options?.prefix}` : ''}`, undefined, (this as any)?.metadata?.keyVersion)
+    const response = await this.request('GET', `/cache/${this.id}${options?.prefix ? `?prefix=${options?.prefix}` : ''}`)
     const items = response as JSONObj
 
     if (Object.keys(items).length === 0) return
