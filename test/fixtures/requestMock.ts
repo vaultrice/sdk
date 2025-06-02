@@ -10,7 +10,8 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
   async function (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {
     const keyVersion = (this as any)?.metadata?.keyVersion
     const pathParts = path.split('/')
-    const objectId = pathParts[2]
+    // const className = pathParts[2]
+    const objectId = pathParts[3]
 
     // init()
     if (pathParts[1] === 'cache-meta') {
@@ -27,8 +28,8 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
     }
 
     // getItem()
-    if (pathParts[1] === 'cache' && pathParts.length === 4 && method === 'GET') {
-      const propName = pathParts[3]
+    if (pathParts[1] === 'cache' && pathParts.length === 5 && method === 'GET') {
+      const propName = pathParts[4]
       objects[`${this.credentials.projectId}:${this.class}`] ||= {}
       objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
       const o = objects[`${this.credentials.projectId}:${this.class}`][objectId][propName]
@@ -36,8 +37,8 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
     }
 
     // setItem()
-    if (pathParts[1] === 'cache' && pathParts.length === 4 && method === 'POST') {
-      const propName = pathParts[3]
+    if (pathParts[1] === 'cache' && pathParts.length === 5 && method === 'POST') {
+      const propName = pathParts[4]
       objects[`${this.credentials.projectId}:${this.class}`] ||= {}
       objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
       objects[`${this.credentials.projectId}:${this.class}`][objectId][propName] = body
@@ -50,7 +51,7 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
     }
 
     // setItems()
-    if (pathParts[1] === 'cache' && pathParts.length === 3 && method === 'POST') {
+    if (pathParts[1] === 'cache' && pathParts.length === 4 && method === 'POST') {
       objects[`${this.credentials.projectId}:${this.class}`] ||= {}
       objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
       const r = {}
@@ -73,7 +74,7 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
     }
 
     // getItems()
-    if (pathParts[1] === 'cache-query' && pathParts.length === 3 && method === 'POST') {
+    if (pathParts[1] === 'cache-query' && pathParts.length === 4 && method === 'POST') {
       objects[`${this.credentials.projectId}:${this.class}`] ||= {}
       objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
       const r = (body as unknown as string[]).reduce((prev, propName) => {
@@ -84,22 +85,22 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
     }
 
     // getAllItems()
-    if (pathParts[1] === 'cache' && pathParts.length === 3 && method === 'GET') {
+    if (pathParts[1] === 'cache' && pathParts.length === 4 && method === 'GET') {
       objects[`${this.credentials.projectId}:${this.class}`] ||= {}
       objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
       return objects[`${this.credentials.projectId}:${this.class}`][objectId]
     }
 
     // getAllKeys()
-    if (pathParts[1] === 'cache-keys' && pathParts.length === 3 && method === 'GET') {
+    if (pathParts[1] === 'cache-keys' && pathParts.length === 4 && method === 'GET') {
       objects[`${this.credentials.projectId}:${this.class}`] ||= {}
       objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
       return Object.keys(objects[`${this.credentials.projectId}:${this.class}`][objectId])
     }
 
     // removeItem()
-    if (pathParts[1] === 'cache' && pathParts.length === 4 && method === 'DELETE') {
-      const propName = pathParts[3]
+    if (pathParts[1] === 'cache' && pathParts.length === 5 && method === 'DELETE') {
+      const propName = pathParts[4]
       objects[`${this.credentials.projectId}:${this.class}`] ||= {}
       objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
       delete objects[`${this.credentials.projectId}:${this.class}`][objectId][propName]
@@ -108,7 +109,7 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
     }
 
     // removeItems()
-    if (pathParts[1] === 'cache' && pathParts.length === 3 && method === 'DELETE' && body) {
+    if (pathParts[1] === 'cache' && pathParts.length === 4 && method === 'DELETE' && body) {
       objects[`${this.credentials.projectId}:${this.class}`] ||= {}
       objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
       ;(body as unknown as string[]).forEach((propName) => {
@@ -119,7 +120,7 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
     }
 
     // clear()
-    if (pathParts[1] === 'cache' && pathParts.length === 3 && method === 'DELETE' && !body) {
+    if (pathParts[1] === 'cache' && pathParts.length === 4 && method === 'DELETE' && !body) {
       objects[`${this.credentials.projectId}:${this.class}`] ||= {}
       objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
       delete objects[`${this.credentials.projectId}:${this.class}`][objectId]
@@ -127,7 +128,7 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
     }
 
     // send()
-    if (pathParts[1] === 'message' && pathParts.length === 3 && method === 'POST' && body) {
+    if (pathParts[1] === 'message' && pathParts.length === 4 && method === 'POST' && body) {
       send({ event: 'message', payload: body, keyVersion })
       return
     }

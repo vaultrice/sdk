@@ -61,7 +61,7 @@ export default class Base {
     if (!(this as any).passphrase) throw new Error('No passphrase passed! This function is only allowed with e2e encryption!')
 
     // fetch object metadata (if not existing on server side, generate salt + keyVersion)
-    const response = await this.request('GET', `/cache-meta/${this.id}`)
+    const response = await this.request('GET', `/cache-meta/${this.class}/${this.id}`)
     const metadata = response as JSONObj
     // on server side check if the e2e feature is enabled/paid, if not, do not return metadata and throw an error here
     // throw new Error('E2E feature not available!')
@@ -91,7 +91,7 @@ export default class Base {
     }
     if (body) headers['Content-Type'] = isStringBody ? 'text/plain' : 'application/json'
     const response = await fetch(
-      `${Base.basePath}/project/${(this as any).credentials.projectId}/${this.class}${path}`, {
+      `${Base.basePath}/project/${(this as any).credentials.projectId}${path}`, {
         method,
         headers,
         body: isStringBody ? body : JSON.stringify(body)

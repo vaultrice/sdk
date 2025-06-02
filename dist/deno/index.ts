@@ -26,7 +26,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
     const ttl = options?.ttl || this.ttl
 
     const valueToStore = (this as any).symKey ? await encrypt((this as any).symKey, JSON.stringify(value)) : value
-    const response = await this.request('POST', `/cache/${this.id}/${name}`, {
+    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}`, {
       value: valueToStore,
       ttl
     })
@@ -48,7 +48,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
       items[name].ttl ||= this.ttl
     }
 
-    const response = await this.request('POST', `/cache/${this.id}`, items)
+    const response = await this.request('POST', `/cache/${this.class}/${this.id}`, items)
     const r = response as JSONObj
     return Object.keys(r).reduce<SetItemsType>((prev, name) => {
       prev[name] = {
@@ -62,7 +62,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
     if (!name) throw new Error('No name passed!')
     if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call init() first!')
 
-    const response = await this.request('GET', `/cache/${this.id}/${name}`)
+    const response = await this.request('GET', `/cache/${this.class}/${this.id}/${name}`)
     const item = response as JSONObj
 
     const v = item?.value
@@ -80,7 +80,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
     if (!names || names.length === 0) throw new Error('No names passed!')
     if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call init() first!')
 
-    const response = await this.request('POST', `/cache-query/${this.id}`, names)
+    const response = await this.request('POST', `/cache-query/${this.class}/${this.id}`, names)
     const items = response as JSONObj
 
     if (Object.keys(items).length === 0) return
@@ -105,7 +105,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
   async getAllItems (options?: { prefix?: string }): Promise<ItemsType | undefined> {
     if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call init() first!')
 
-    const response = await this.request('GET', `/cache/${this.id}${options?.prefix ? `?prefix=${options?.prefix}` : ''}`)
+    const response = await this.request('GET', `/cache/${this.class}/${this.id}${options?.prefix ? `?prefix=${options?.prefix}` : ''}`)
     const items = response as JSONObj
 
     if (Object.keys(items).length === 0) return
@@ -128,23 +128,23 @@ export default class NonLocalStorage extends WebSocketFunctions {
   }
 
   async getAllKeys (options?: { prefix?: string }): Promise<string[] | undefined> {
-    const response = await this.request('GET', `/cache-keys/${this.id}${options?.prefix ? `?prefix=${options?.prefix}` : ''}`)
+    const response = await this.request('GET', `/cache-keys/${this.class}/${this.id}${options?.prefix ? `?prefix=${options?.prefix}` : ''}`)
     return response as unknown as string[]
   }
 
   async removeItem (name: string): Promise<undefined> {
     if (!name) throw new Error('No name passed!')
 
-    await this.request('DELETE', `/cache/${this.id}/${name}`)
+    await this.request('DELETE', `/cache/${this.class}/${this.id}/${name}`)
   }
 
   async removeItems (names: string[]): Promise<undefined> {
     if (!names || names.length === 0) throw new Error('No names passed!')
 
-    await this.request('DELETE', `/cache/${this.id}`, names)
+    await this.request('DELETE', `/cache/${this.class}/${this.id}`, names)
   }
 
   async clear (): Promise<undefined> {
-    await this.request('DELETE', `/cache/${this.id}`)
+    await this.request('DELETE', `/cache/${this.class}/${this.id}`)
   }
 }

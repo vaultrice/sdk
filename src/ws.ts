@@ -14,7 +14,7 @@ export default class WebSocketFunctions extends Base {
     const msgToSend = (this as any).symKey ? await encrypt((this as any).symKey, JSON.stringify(msg)) : msg
 
     if (options.transport === 'http') {
-      await this.request('POST', `/message/${this.id}`, msgToSend)
+      await this.request('POST', `/message/${this.class}/${this.id}`, msgToSend)
       return
     }
 
@@ -143,7 +143,7 @@ export default class WebSocketFunctions extends Base {
     if ((this as any).ws) return (this as any).ws
 
     const wsBasePath = WebSocketFunctions.basePath.replace('http', 'ws')
-    const ws = (this as any).ws = new WebSocket(`${wsBasePath}/project/${(this as any).credentials.projectId}/${this.class}/ws/${this.id}`, encodeURIComponent(`Basic ${btoa(`${(this as any).credentials.apiKey}:${(this as any).credentials.apiSecret}`)}`))
+    const ws = (this as any).ws = new WebSocket(`${wsBasePath}/project/${(this as any).credentials.projectId}/ws/${this.class}/${this.id}`, encodeURIComponent(`Basic ${btoa(`${(this as any).credentials.apiKey}:${(this as any).credentials.apiSecret}`)}`))
     ws.addEventListener('close', () => {
       delete (this as any).ws
     })
