@@ -11,10 +11,28 @@ function getId () {
   return `${uuidv4()}-${uuidv4()}`
 }
 
+const DEFAULT_DURABLE_CACHE_CLASS = '_undefined_'
+
 export default class Base {
   protected static basePath: string = 'http://localhost:5173'
+  protected readonly signedId?: string
+  protected readonly idSignatureKeyVersion?: number
+  protected readonly class: string = DEFAULT_DURABLE_CACHE_CLASS
 
-  constructor (credentials: { apiKey: string, apiSecret: string, projectId: string }, readonly id: string = getId(), options?: { passphrase?: string }) {
+  constructor (
+    credentials: {
+      apiKey: string,
+      apiSecret: string,
+      projectId: string
+    },
+    readonly id: string = getId(),
+    options: {
+      class?: string,
+      passphrase?: string,
+      signedId?: string,
+      idSignatureKeyVersion?: number
+    } = { class: DEFAULT_DURABLE_CACHE_CLASS }
+  ) {
     if (!credentials ||
       typeof credentials !== 'object' ||
       typeof credentials.apiKey !== 'string' ||
@@ -29,7 +47,11 @@ export default class Base {
 
     ;(this as any).credentials = credentials
 
-    if (options?.passphrase) (this as any).passphrase = options?.passphrase
+    this.class = options.class || DEFAULT_DURABLE_CACHE_CLASS
+
+    if (options.passphrase) (this as any).passphrase = options.passphrase
+    if (options.signedId) this.signedId = options.signedId
+    if (this.signedId) this.idSignatureKeyVersion = options.idSignatureKeyVersion || 0
   }
 
   /**
@@ -52,20 +74,24 @@ export default class Base {
     ;(this as any).symKey = await deriveSymmetricKey((this as any).passphrase, this.id, (this as any).metadata.salt)
   }
 
-  async request (method: string, path: string, body?: JSONObj | string | string[], keyVersion?: number | undefined): Promise<string | string[] | JSONObj | undefined> {
+  async request (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {
     const isStringBody = typeof body === 'string'
     const headers: {
       Authorization: string; [key: string]: string
     } = {
       Authorization: `Basic ${btoa(`${(this as any).credentials.apiKey}:${(this as any).credentials.apiSecret}`)}`
     }
-    keyVersion ||= (this as any)?.metadata?.keyVersion
+    const keyVersion = (this as any)?.metadata?.keyVersion
     if (keyVersion !== undefined && keyVersion > -1) {
       headers['X-Enc-KV'] = keyVersion.toString()
     }
+    if (this.signedId && this.idSignatureKeyVersion !== undefined) {
+      headers['X-Id-Sig'] = this.signedId
+      headers['X-Id-Sig-KV'] = this.idSignatureKeyVersion.toString()
+    }
     if (body) headers['Content-Type'] = isStringBody ? 'text/plain' : 'application/json'
     const response = await fetch(
-      `${Base.basePath}/project/${(this as any).credentials.projectId}${path}`, {
+      `${Base.basePath}/project/${(this as any).credentials.projectId}/${this.class}${path}`, {
         method,
         headers,
         body: isStringBody ? body : JSON.stringify(body)

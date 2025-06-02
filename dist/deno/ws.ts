@@ -21,6 +21,10 @@ export default class WebSocketFunctions extends Base {
     const ws = this.getWebSocket()
     const wrappedMsg = { event: 'message', payload: msgToSend }
     if ((this as any)?.metadata?.keyVersion > -1) (wrappedMsg as any).keyVersion = (this as any)?.metadata?.keyVersion
+    if (this.signedId && this.idSignatureKeyVersion !== undefined) {
+      ;(wrappedMsg as any).signedId = this.signedId
+      ;(wrappedMsg as any).idSignatureKeyVersion = this.idSignatureKeyVersion
+    }
     ws.send(JSON.stringify(wrappedMsg))
   }
 
@@ -139,7 +143,7 @@ export default class WebSocketFunctions extends Base {
     if ((this as any).ws) return (this as any).ws
 
     const wsBasePath = WebSocketFunctions.basePath.replace('http', 'ws')
-    const ws = (this as any).ws = new WebSocket(`${wsBasePath}/project/${(this as any).credentials.projectId}/ws/${this.id}`, encodeURIComponent(`Basic ${btoa(`${(this as any).credentials.apiKey}:${(this as any).credentials.apiSecret}`)}`))
+    const ws = (this as any).ws = new WebSocket(`${wsBasePath}/project/${(this as any).credentials.projectId}/${this.class}/ws/${this.id}`, encodeURIComponent(`Basic ${btoa(`${(this as any).credentials.apiKey}:${(this as any).credentials.apiSecret}`)}`))
     ws.addEventListener('close', () => {
       delete (this as any).ws
     })

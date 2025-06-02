@@ -7,21 +7,21 @@ const metadata = {}
 const objects = {}
 
 vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
-  async function (method: string, path: string, body?: JSONObj | string | string[], keyVersion?: number | undefined): Promise<string | string[] | JSONObj | undefined> {
-    keyVersion ||= (this as any)?.metadata?.keyVersion
+  async function (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {
+    const keyVersion = (this as any)?.metadata?.keyVersion
     const pathParts = path.split('/')
     const objectId = pathParts[2]
 
     // init()
     if (pathParts[1] === 'cache-meta') {
-      metadata[this.credentials.projectId] ||= {}
-      let meta = metadata[this.credentials.projectId][objectId]
+      metadata[`${this.credentials.projectId}:${this.class}`] ||= {}
+      let meta = metadata[`${this.credentials.projectId}:${this.class}`][objectId]
       if (!meta) {
         meta = {
           salt: btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))),
           keyVersion: 0
         }
-        metadata[this.credentials.projectId][objectId] = meta
+        metadata[`${this.credentials.projectId}:${this.class}`][objectId] = meta
       }
       return meta
     }
@@ -29,21 +29,21 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
     // getItem()
     if (pathParts[1] === 'cache' && pathParts.length === 4 && method === 'GET') {
       const propName = pathParts[3]
-      objects[this.credentials.projectId] ||= {}
-      objects[this.credentials.projectId][objectId] ||= {}
-      const o = objects[this.credentials.projectId][objectId][propName]
+      objects[`${this.credentials.projectId}:${this.class}`] ||= {}
+      objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
+      const o = objects[`${this.credentials.projectId}:${this.class}`][objectId][propName]
       return o
     }
 
     // setItem()
     if (pathParts[1] === 'cache' && pathParts.length === 4 && method === 'POST') {
       const propName = pathParts[3]
-      objects[this.credentials.projectId] ||= {}
-      objects[this.credentials.projectId][objectId] ||= {}
-      objects[this.credentials.projectId][objectId][propName] = body
-      objects[this.credentials.projectId][objectId][propName].expiresAt = Date.now() + (objects[this.credentials.projectId][objectId][propName]?.ttl || 10000)
-      delete objects[this.credentials.projectId][objectId][propName].ttl
-      send({ event: 'setItem', payload: { prop: propName, ...objects[this.credentials.projectId][objectId][propName] }, keyVersion })
+      objects[`${this.credentials.projectId}:${this.class}`] ||= {}
+      objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
+      objects[`${this.credentials.projectId}:${this.class}`][objectId][propName] = body
+      objects[`${this.credentials.projectId}:${this.class}`][objectId][propName].expiresAt = Date.now() + (objects[`${this.credentials.projectId}:${this.class}`][objectId][propName]?.ttl || 10000)
+      delete objects[`${this.credentials.projectId}:${this.class}`][objectId][propName].ttl
+      send({ event: 'setItem', payload: { prop: propName, ...objects[`${this.credentials.projectId}:${this.class}`][objectId][propName] }, keyVersion })
       return {
         expiresAt: (body as any)?.expiresAt
       }
@@ -51,12 +51,12 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
 
     // setItems()
     if (pathParts[1] === 'cache' && pathParts.length === 3 && method === 'POST') {
-      objects[this.credentials.projectId] ||= {}
-      objects[this.credentials.projectId][objectId] ||= {}
+      objects[`${this.credentials.projectId}:${this.class}`] ||= {}
+      objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
       const r = {}
       if (body && typeof body === 'object') {
         Object.keys(body).forEach((name) => {
-          objects[this.credentials.projectId][objectId][name] = body[name]
+          objects[`${this.credentials.projectId}:${this.class}`][objectId][name] = body[name]
           let expiresAt = Date.now()
           if (typeof body[name] === 'object' && body[name] !== null && (body[name] as any).ttl) {
             expiresAt += body[name].ttl
@@ -66,7 +66,7 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
           r[name] = {
             expiresAt
           }
-          send({ event: 'setItem', payload: { prop: name, value: objects[this.credentials.projectId][objectId][name].value, ...r[name] }, keyVersion })
+          send({ event: 'setItem', payload: { prop: name, value: objects[`${this.credentials.projectId}:${this.class}`][objectId][name].value, ...r[name] }, keyVersion })
         })
       }
       return r
@@ -74,10 +74,10 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
 
     // getItems()
     if (pathParts[1] === 'cache-query' && pathParts.length === 3 && method === 'POST') {
-      objects[this.credentials.projectId] ||= {}
-      objects[this.credentials.projectId][objectId] ||= {}
+      objects[`${this.credentials.projectId}:${this.class}`] ||= {}
+      objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
       const r = (body as unknown as string[]).reduce((prev, propName) => {
-        prev[propName] = objects[this.credentials.projectId][objectId][propName]
+        prev[propName] = objects[`${this.credentials.projectId}:${this.class}`][objectId][propName]
         return prev
       }, {})
       return r
@@ -85,34 +85,34 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
 
     // getAllItems()
     if (pathParts[1] === 'cache' && pathParts.length === 3 && method === 'GET') {
-      objects[this.credentials.projectId] ||= {}
-      objects[this.credentials.projectId][objectId] ||= {}
-      return objects[this.credentials.projectId][objectId]
+      objects[`${this.credentials.projectId}:${this.class}`] ||= {}
+      objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
+      return objects[`${this.credentials.projectId}:${this.class}`][objectId]
     }
 
     // getAllKeys()
     if (pathParts[1] === 'cache-keys' && pathParts.length === 3 && method === 'GET') {
-      objects[this.credentials.projectId] ||= {}
-      objects[this.credentials.projectId][objectId] ||= {}
-      return Object.keys(objects[this.credentials.projectId][objectId])
+      objects[`${this.credentials.projectId}:${this.class}`] ||= {}
+      objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
+      return Object.keys(objects[`${this.credentials.projectId}:${this.class}`][objectId])
     }
 
     // removeItem()
     if (pathParts[1] === 'cache' && pathParts.length === 4 && method === 'DELETE') {
       const propName = pathParts[3]
-      objects[this.credentials.projectId] ||= {}
-      objects[this.credentials.projectId][objectId] ||= {}
-      delete objects[this.credentials.projectId][objectId][propName]
+      objects[`${this.credentials.projectId}:${this.class}`] ||= {}
+      objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
+      delete objects[`${this.credentials.projectId}:${this.class}`][objectId][propName]
       send({ event: 'removeItem', payload: { prop: propName } })
       return
     }
 
     // removeItems()
     if (pathParts[1] === 'cache' && pathParts.length === 3 && method === 'DELETE' && body) {
-      objects[this.credentials.projectId] ||= {}
-      objects[this.credentials.projectId][objectId] ||= {}
+      objects[`${this.credentials.projectId}:${this.class}`] ||= {}
+      objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
       ;(body as unknown as string[]).forEach((propName) => {
-        delete objects[this.credentials.projectId][objectId][propName]
+        delete objects[`${this.credentials.projectId}:${this.class}`][objectId][propName]
         send({ event: 'removeItem', payload: { prop: propName } })
       })
       return
@@ -120,9 +120,9 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
 
     // clear()
     if (pathParts[1] === 'cache' && pathParts.length === 3 && method === 'DELETE' && !body) {
-      objects[this.credentials.projectId] ||= {}
-      objects[this.credentials.projectId][objectId] ||= {}
-      delete objects[this.credentials.projectId][objectId]
+      objects[`${this.credentials.projectId}:${this.class}`] ||= {}
+      objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
+      delete objects[`${this.credentials.projectId}:${this.class}`][objectId]
       return
     }
 

@@ -11,12 +11,28 @@ function getId () {
   return `${uuidv4()}-${uuidv4()}`
 }
 
+const DEFAULT_DURABLE_CACHE_CLASS = '_undefined_'
+
 export default class Base {
   protected static basePath: string = 'http://localhost:5173'
   protected readonly signedId?: string
   protected readonly idSignatureKeyVersion?: number
+  protected readonly class: string = DEFAULT_DURABLE_CACHE_CLASS
 
-  constructor (credentials: { apiKey: string, apiSecret: string, projectId: string }, readonly id: string = getId(), options?: { passphrase?: string, signedId?: string, idSignatureKeyVersion?: number }) {
+  constructor (
+    credentials: {
+      apiKey: string,
+      apiSecret: string,
+      projectId: string
+    },
+    readonly id: string = getId(),
+    options: {
+      class?: string,
+      passphrase?: string,
+      signedId?: string,
+      idSignatureKeyVersion?: number
+    } = { class: DEFAULT_DURABLE_CACHE_CLASS }
+  ) {
     if (!credentials ||
       typeof credentials !== 'object' ||
       typeof credentials.apiKey !== 'string' ||
@@ -31,9 +47,11 @@ export default class Base {
 
     ;(this as any).credentials = credentials
 
-    if (options?.passphrase) (this as any).passphrase = options?.passphrase
-    if (options?.signedId) this.signedId = options?.signedId
-    if (this.signedId) this.idSignatureKeyVersion = options?.idSignatureKeyVersion || 0
+    this.class = options.class || DEFAULT_DURABLE_CACHE_CLASS
+
+    if (options.passphrase) (this as any).passphrase = options.passphrase
+    if (options.signedId) this.signedId = options.signedId
+    if (this.signedId) this.idSignatureKeyVersion = options.idSignatureKeyVersion || 0
   }
 
   /**
@@ -73,7 +91,7 @@ export default class Base {
     }
     if (body) headers['Content-Type'] = isStringBody ? 'text/plain' : 'application/json'
     const response = await fetch(
-      `${Base.basePath}/project/${(this as any).credentials.projectId}${path}`, {
+      `${Base.basePath}/project/${(this as any).credentials.projectId}/${this.class}${path}`, {
         method,
         headers,
         body: isStringBody ? body : JSON.stringify(body)

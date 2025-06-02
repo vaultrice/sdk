@@ -19,9 +19,9 @@ NonLocalStorage.getWebSocketServer = function (): WS {
 
 vi.spyOn(NonLocalStorage.prototype, 'getWebSocket').mockImplementation(
   function (): WebSocket {
-    ws[this.credentials.projectId] ||= {}
-    if (ws[this.credentials.projectId][this.id]) return ws[this.credentials.projectId][this.id]
-    ws[this.credentials.projectId][this.id] ||= new WebSocket('ws://localhost:1234')
-    return ws[this.credentials.projectId][this.id]
+    ws[`${this.credentials.projectId}:${this.class}`] ||= {}
+    if (ws[`${this.credentials.projectId}:${this.class}`][this.id]) return ws[`${this.credentials.projectId}:${this.class}`][this.id]
+    ws[`${this.credentials.projectId}:${this.class}`][this.id] ||= new WebSocket('ws://localhost:1234')
+    return ws[`${this.credentials.projectId}:${this.class}`][this.id]
   }
 )
