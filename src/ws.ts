@@ -9,7 +9,7 @@ export default class WebSocketFunctions extends Base {
   }
 
   async send (msg: JSONObj, options: { transport?: 'ws' | 'http' } = { transport: 'ws' }): Promise<undefined> {
-    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call init() first!')
+    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call getEncryptionSettings() first!')
 
     const msgToSend = (this as any).symKey ? await encrypt((this as any).symKey, JSON.stringify(msg)) : msg
 
@@ -20,7 +20,7 @@ export default class WebSocketFunctions extends Base {
 
     const ws = this.getWebSocket()
     const wrappedMsg = { event: 'message', payload: msgToSend }
-    if ((this as any)?.metadata?.keyVersion > -1) (wrappedMsg as any).keyVersion = (this as any)?.metadata?.keyVersion
+    if ((this as any)?.encryptionSettings?.keyVersion > -1) (wrappedMsg as any).keyVersion = (this as any)?.encryptionSettings?.keyVersion
     if (this.signedId && this.idSignatureKeyVersion !== undefined) {
       ;(wrappedMsg as any).signedId = this.signedId
       ;(wrappedMsg as any).idSignatureKeyVersion = this.idSignatureKeyVersion
@@ -63,11 +63,12 @@ export default class WebSocketFunctions extends Base {
     }
 
     const maybeDecryptAndHandle = (msg: any, hndl: any, completePayload: boolean = false) => {
-      if (msg.keyVersion === undefined) return hndl(msg.payload)
-      if (msg.keyVersion > -1) {
+      const keyVersion = completePayload ? msg.keyVersion : msg.payload.keyVersion
+      if (keyVersion === undefined) return hndl(msg.payload)
+      if (keyVersion > -1) {
         if (!(this as any).passphrase) return (this as any).errorHandlers.map((h: (e: Error) => {}) => h(new Error('Encrypted data, but no passhprase configured!')))
-        if (!(this as any).symKey) return (this as any).errorHandlers.map((h: (e: Error) => {}) => h(new Error('Encrypted data, but init() not called!')))
-        if (msg.keyVersion !== (this as any)?.metadata?.keyVersion) return (this as any).errorHandlers.map((h: (e: Error) => {}) => h(new Error('Wrong keyVersion! Call init() again!')))
+        if (!(this as any).symKey) return (this as any).errorHandlers.map((h: (e: Error) => {}) => h(new Error('Encrypted data, but getEncryptionSettings() not called!')))
+        if (keyVersion !== (this as any)?.encryptionSettings?.keyVersion) return (this as any).errorHandlers.map((h: (e: Error) => {}) => h(new Error('Wrong keyVersion! Call getEncryptionSettings() again!')))
         let toDec = msg.payload.value
         if (completePayload) toDec = msg.payload
         decrypt((this as any).symKey, toDec).then((decrypted) => {

@@ -8,22 +8,34 @@ const objects = {}
 
 vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
   async function (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {
-    const keyVersion = (this as any)?.metadata?.keyVersion
+    const keyVersion = (this as any)?.encryptionSettings?.keyVersion
     const pathParts = path.split('/')
     // const className = pathParts[2]
     const objectId = pathParts[3]
 
-    // init()
-    if (pathParts[1] === 'cache-meta') {
+    // getEncryptionSettings()
+    if (pathParts[1] === 'cache-encryption') {
       metadata[`${this.credentials.projectId}:${this.class}`] ||= {}
-      let meta = metadata[`${this.credentials.projectId}:${this.class}`][objectId]
-      if (!meta) {
-        meta = {
-          salt: btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))),
-          keyVersion: 0
-        }
-        metadata[`${this.credentials.projectId}:${this.class}`][objectId] = meta
+      const meta = metadata[`${this.credentials.projectId}:${this.class}`][objectId] || {}
+      meta.encryptionSettings ||= {
+        salt: btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))),
+        keyVersion: 0
       }
+      metadata[`${this.credentials.projectId}:${this.class}`][objectId] = meta
+      return meta
+    }
+
+    // rotateEncryptionSettings()
+    if (pathParts[1] === 'cache-encryption-rotate') {
+      metadata[`${this.credentials.projectId}:${this.class}`] ||= {}
+      const meta = metadata[`${this.credentials.projectId}:${this.class}`][objectId] || {}
+      meta.previousEncryptionSettings ||= []
+      if (meta.encryptionSettings) meta.previousEncryptionSettings.push(meta.encryptionSettings)
+      meta.encryptionSettings = {
+        salt: btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))),
+        keyVersion: meta?.encryptionSettings?.keyVersion > -1 ? (meta?.encryptionSettings?.keyVersion + 1) : 0
+      }
+      metadata[`${this.credentials.projectId}:${this.class}`][objectId] = meta
       return meta
     }
 
@@ -43,10 +55,11 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
       objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
       objects[`${this.credentials.projectId}:${this.class}`][objectId][propName] = body
       objects[`${this.credentials.projectId}:${this.class}`][objectId][propName].expiresAt = Date.now() + (objects[`${this.credentials.projectId}:${this.class}`][objectId][propName]?.ttl || 10000)
-      delete objects[`${this.credentials.projectId}:${this.class}`][objectId][propName].ttl
-      send({ event: 'setItem', payload: { prop: propName, ...objects[`${this.credentials.projectId}:${this.class}`][objectId][propName] }, keyVersion })
+      objects[`${this.credentials.projectId}:${this.class}`][objectId][propName].keyVersion = keyVersion
+      send({ event: 'setItem', payload: { prop: propName, ...objects[`${this.credentials.projectId}:${this.class}`][objectId][propName] } })
       return {
-        expiresAt: (body as any)?.expiresAt
+        expiresAt: (body as any)?.expiresAt,
+        keyVersion
       }
     }
 
@@ -65,9 +78,10 @@ vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
             expiresAt += 10000
           }
           r[name] = {
-            expiresAt
+            expiresAt,
+            keyVersion
           }
-          send({ event: 'setItem', payload: { prop: name, value: objects[`${this.credentials.projectId}:${this.class}`][objectId][name].value, ...r[name] }, keyVersion })
+          send({ event: 'setItem', payload: { prop: name, value: objects[`${this.credentials.projectId}:${this.class}`][objectId][name].value, ...r[name] } })
         })
       }
       return r
