@@ -21,7 +21,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
   async setItem (name: string, value: ValueType, options?: { ttl?: number }): Promise<SetReturnType> {
     if (!name) throw new Error('No name passed!')
     if (!value) throw new Error('No value passed!')
-    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call init() first!')
+    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call getEncryptionSettings() first!')
 
     const ttl = options?.ttl || this.ttl
 
@@ -32,12 +32,15 @@ export default class NonLocalStorage extends WebSocketFunctions {
     })
     const item = response as JSONObj
 
-    return { expiresAt: item?.expiresAt as number }
+    return {
+      expiresAt: item?.expiresAt as number,
+      keyVersion: item?.keyVersion as number ?? undefined
+    }
   }
 
   async setItems (items: Record<string, { value: ValueType, ttl?: number }>): Promise<SetItemsType | undefined> {
     if (!items || Object.keys(items).length === 0) throw new Error('No items passed!')
-    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call init() first!')
+    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call getEncryptionSettings() first!')
 
     // Process each item, encrypting values if necessary
     for (const name of Object.keys(items)) {
@@ -52,7 +55,8 @@ export default class NonLocalStorage extends WebSocketFunctions {
     const r = response as JSONObj
     return Object.keys(r).reduce<SetItemsType>((prev, name) => {
       prev[name] = {
-        expiresAt: (r[name] as { expiresAt?: number })?.expiresAt ?? 0
+        expiresAt: (r[name] as { expiresAt?: number })?.expiresAt ?? 0,
+        keyVersion: (r[name] as { keyVersion?: number })?.keyVersion ?? undefined
       }
       return prev
     }, {})
@@ -60,7 +64,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
 
   async getItem<T = ValueType> (name: string): Promise<ItemType<T> | undefined> {
     if (!name) throw new Error('No name passed!')
-    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call init() first!')
+    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call getEncryptionSettings() first!')
 
     const response = await this.request('GET', `/cache/${this.class}/${this.id}/${name}`)
     const item = response as JSONObj
@@ -68,17 +72,24 @@ export default class NonLocalStorage extends WebSocketFunctions {
     const v = item?.value
     if (!v) return
 
-    const value = (this as any).symKey ? JSON.parse(await decrypt((this as any).symKey, v as string)) : v
+    const symKey = await this.getSymKeyForKeyVersion(item.keyVersion as number)
+    const value = symKey ? JSON.parse(await decrypt(symKey, v as string)) : v
+
+    const hasOldEncryption = (item?.keyVersion as number) > -1 && item.keyVersion !== (this as any).encryptionSettings?.keyVersion
+    if (hasOldEncryption) {
+      this.logger.log('warn', `Item "${name}" has an old encryption and can be updated by storing it again.`)
+    }
 
     return {
       value,
-      expiresAt: item.expiresAt as number
+      expiresAt: item.expiresAt as number,
+      keyVersion: item.keyVersion as number
     }
   }
 
   async getItems (names: string[]): Promise<ItemsType | undefined> {
     if (!names || names.length === 0) throw new Error('No names passed!')
-    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call init() first!')
+    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call getEncryptionSettings() first!')
 
     const response = await this.request('POST', `/cache-query/${this.class}/${this.id}`, names)
     const items = response as JSONObj
@@ -91,11 +102,18 @@ export default class NonLocalStorage extends WebSocketFunctions {
       const v = item?.value
       if (!v) continue
 
-      const value = (this as any).symKey ? JSON.parse(await decrypt((this as any).symKey, v as string)) : v
+      const symKey = await this.getSymKeyForKeyVersion(item.keyVersion as number)
+      const value = symKey ? JSON.parse(await decrypt(symKey, v as string)) : v
+
+      const hasOldEncryption = (item?.keyVersion as number) > -1 && item.keyVersion !== (this as any).encryptionSettings?.keyVersion
+      if (hasOldEncryption) {
+        this.logger.log('warn', `Item "${name}" has an old encryption and can be updated by storing it again.`)
+      }
 
       result[name] = {
         value,
-        expiresAt: item.expiresAt as number
+        expiresAt: item.expiresAt as number,
+        keyVersion: item.keyVersion as number
       }
     }
 
@@ -103,7 +121,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
   }
 
   async getAllItems (options?: { prefix?: string }): Promise<ItemsType | undefined> {
-    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call init() first!')
+    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call getEncryptionSettings() first!')
 
     const response = await this.request('GET', `/cache/${this.class}/${this.id}${options?.prefix ? `?prefix=${options?.prefix}` : ''}`)
     const items = response as JSONObj
@@ -116,11 +134,13 @@ export default class NonLocalStorage extends WebSocketFunctions {
       const v = item?.value
       if (!v) continue
 
-      const value = (this as any).symKey ? JSON.parse(await decrypt((this as any).symKey, v as string)) : v
+      const symKey = await this.getSymKeyForKeyVersion(item.keyVersion as number)
+      const value = symKey ? JSON.parse(await decrypt(symKey, v as string)) : v
 
       result[name] = {
         value,
-        expiresAt: item.expiresAt as number
+        expiresAt: item.expiresAt as number,
+        keyVersion: item.keyVersion as number ?? undefined
       }
     }
 
