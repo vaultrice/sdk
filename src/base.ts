@@ -1,7 +1,7 @@
 import { getLocalId, setLocalId } from './local'
 import { deriveSymmetricKey } from './encryption'
 import uuidv4 from './uuidv4'
-import { JSONObj, LogLevel } from './types'
+import { JSONObj, InstanceOptions } from './types'
 import getLogger, { Logger } from './logger'
 
 function getId () {
@@ -20,6 +20,7 @@ export default class Base {
   protected readonly idSignatureKeyVersion?: number
   protected readonly class: string = DEFAULT_DURABLE_CACHE_CLASS
   protected logger: Logger
+  id: string
 
   constructor (
     credentials: {
@@ -27,15 +28,33 @@ export default class Base {
       apiSecret: string,
       projectId: string
     },
-    readonly id: string = getId(),
-    options: {
-      class?: string,
-      passphrase?: string,
-      signedId?: string,
-      idSignatureKeyVersion?: number,
-      logLevel?: LogLevel
-    } = { class: DEFAULT_DURABLE_CACHE_CLASS, logLevel: 'warn' }
+    id?: string
+  )
+  constructor (
+    credentials: {
+      apiKey: string,
+      apiSecret: string,
+      projectId: string
+    },
+    options?: InstanceOptions
+  )
+  constructor (
+    credentials: {
+      apiKey: string,
+      apiSecret: string,
+      projectId: string
+    },
+    idOrOptions: string | InstanceOptions | undefined = { id: getId(), class: DEFAULT_DURABLE_CACHE_CLASS, logLevel: 'warn' }
   ) {
+    let options: InstanceOptions = { class: DEFAULT_DURABLE_CACHE_CLASS, logLevel: 'warn' }
+    if (typeof idOrOptions === 'string') {
+      this.id = idOrOptions
+      options = { class: DEFAULT_DURABLE_CACHE_CLASS, logLevel: 'warn' }
+    } else {
+      this.id = idOrOptions.id || getId()
+      options = idOrOptions
+    }
+
     this.logger = getLogger(options.logLevel)
     if (!credentials ||
       typeof credentials !== 'object' ||

@@ -16,7 +16,7 @@ describe(`NonLocalStorage (${process.env.MODE})`, () => {
 
   describe('basic usage', () => {
     it('should work as expected', async () => {
-      const nls = new NonLocalStorage({ apiKey, apiSecret, projectId }, undefined, { class: className })
+      const nls = new NonLocalStorage({ apiKey, apiSecret, projectId }, { class: className })
 
       let item = await nls.getItem('my-prop')
       expect(item).to.eql(undefined)

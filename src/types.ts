@@ -18,3 +18,13 @@ type JSONObjInner =
   | { [key: string]: JSONObjInner }
   | JSONObjInner[]
 export type JSONObj = { [key: string]: JSONObjInner }
+
+export type InstanceOptions = {
+  id?: string,
+  class?: string,
+  ttl?: number,
+  passphrase?: string,
+  signedId?: string,
+  idSignatureKeyVersion?: number,
+  logLevel?: LogLevel
+}

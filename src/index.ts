@@ -7,7 +7,7 @@ import {
   ItemsType,
   SetItemsType,
   JSONObj,
-  LogLevel
+  InstanceOptions
 } from './types'
 
 export default class NonLocalStorage extends WebSocketFunctions {
@@ -19,19 +19,30 @@ export default class NonLocalStorage extends WebSocketFunctions {
       apiSecret: string,
       projectId: string
     },
-    id?: string | undefined,
-    options?: {
-      class?: string,
-      ttl?: number,
-      passphrase?: string,
-      signedId?: string,
-      idSignatureKeyVersion?: number,
-      logLevel?: LogLevel
-    }
+    id?: string
+  )
+  constructor (
+    credentials: {
+      apiKey: string,
+      apiSecret: string,
+      projectId: string
+    },
+    options?: InstanceOptions
+  )
+  constructor (
+    credentials: {
+      apiKey: string,
+      apiSecret: string,
+      projectId: string
+    },
+    idOrOptions?: string | InstanceOptions | undefined
   ) {
-    super(credentials, id, options)
-
-    if (options?.ttl) this.ttl = options?.ttl
+    if (typeof idOrOptions === 'string') {
+      super(credentials, idOrOptions)
+    } else {
+      super(credentials, idOrOptions as InstanceOptions | undefined)
+      if (idOrOptions?.ttl) this.ttl = idOrOptions?.ttl
+    }
   }
 
   async setItem (name: string, value: ValueType, options?: { ttl?: number }): Promise<SetReturnType> {

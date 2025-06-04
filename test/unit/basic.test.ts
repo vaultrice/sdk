@@ -227,7 +227,7 @@ describe('NonLocalStorage', () => {
 
   describe('e2e usage', () => {
     it('should work as expected', async () => {
-      const nls = new NonLocalStorage({ apiKey: uuidv4(), apiSecret: '1234', projectId: uuidv4() }, '1122334455', { passphrase: 'very secret e2e password' })
+      const nls = new NonLocalStorage({ apiKey: uuidv4(), apiSecret: '1234', projectId: uuidv4() }, { id: '1122334455', passphrase: 'very secret e2e password' })
       await nls.getEncryptionSettings()
       const set = await nls.setItem('testprop', 'test-value')
       expect(set).to.have.property('keyVersion', 0)
@@ -258,7 +258,7 @@ describe('NonLocalStorage', () => {
         })
       })
 
-      const nls = new NonLocalStorage({ apiKey: uuidv4(), apiSecret: 'dummy', projectId: uuidv4() }, '1234567890', { passphrase: 'very secret e2e password' })
+      const nls = new NonLocalStorage({ apiKey: uuidv4(), apiSecret: 'dummy', projectId: uuidv4() }, { id: '1234567890', passphrase: 'very secret e2e password' })
       await nls.getEncryptionSettings()
 
       const receivedMesssagesOnClient: any[] = []
