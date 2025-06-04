@@ -182,6 +182,7 @@ export default class Base {
     if (!response.ok) {
       if (typeof respBody === 'string') throw new Error(respBody)
       if (respBody) throw new Error(respBody.message)
+      throw new Error(`${response.status} - ${response.statusText}`)
     }
     return respBody
   }
