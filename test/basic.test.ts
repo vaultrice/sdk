@@ -1,11 +1,21 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import NonLocalStorage from '../src/index'
 import uuidv4 from '../src/uuidv4'
-import './fixtures/requestMock'
-import './fixtures/getWebsocketMock'
+import mockRequest from './fixtures/requestMock'
+import mockWs from './fixtures/getWebsocketMock'
 import { setTimeout as wait } from 'node:timers/promises'
 
 describe('NonLocalStorage', () => {
+  let restoreRequest, restoreWs
+  beforeAll(() => {
+    restoreRequest = mockRequest()
+    restoreWs = mockWs()
+  })
+  afterAll(() => {
+    restoreRequest()
+    restoreWs()
+  })
+
   describe('new instance', () => {
     it('should work as expected', () => {
       const nls = new NonLocalStorage({ apiKey: 'dummy', apiSecret: 'dummy', projectId: '12345' })
