@@ -1,6 +1,6 @@
 import { vi } from 'vitest'
-import NonLocalStorage from '../../src/index'
-import { JSONObj } from '../../src/types'
+import NonLocalStorage from '../../../src/index'
+import { JSONObj } from '../../../src/types'
 
 const metadata = {}
 const objects = {}

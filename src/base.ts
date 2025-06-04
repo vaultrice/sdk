@@ -153,8 +153,12 @@ export default class Base {
     const contentType = response.headers.get('content-type')
     let respBody
     if (contentType) {
-      if (contentType.indexOf('text/plain') === 0) respBody = await response.text()
-      else if (contentType.indexOf('application/json') === 0) respBody = await response.json()
+      try {
+        if (contentType.indexOf('text/plain') === 0) respBody = await response.text()
+        else if (contentType.indexOf('application/json') === 0) respBody = await response.json()
+      } catch (e) {
+        respBody = `${response.status} - ${response.statusText}`
+      }
     }
     if (!response.ok) {
       if (typeof respBody === 'string') throw new Error(respBody)

@@ -7,3 +7,5 @@ scripts
 # !dist/
 # dist/*
 # !dist/deno/
+
+.env.*

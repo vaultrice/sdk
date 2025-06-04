@@ -6,14 +6,30 @@ import {
   ItemType,
   ItemsType,
   SetItemsType,
-  JSONObj
+  JSONObj,
+  LogLevel
 } from './types'
 
 export default class NonLocalStorage extends WebSocketFunctions {
   private ttl: number | undefined
 
-  constructor (credentials: { apiKey: string, apiSecret: string, projectId: string }, id?: string, options?: { ttl?: number, passphrase?: string }) {
-    super(credentials, id, options && { passphrase: options?.passphrase })
+  constructor (
+    credentials: {
+      apiKey: string,
+      apiSecret: string,
+      projectId: string
+    },
+    id?: string | undefined,
+    options?: {
+      class?: string,
+      ttl?: number,
+      passphrase?: string,
+      signedId?: string,
+      idSignatureKeyVersion?: number,
+      logLevel?: LogLevel
+    }
+  ) {
+    super(credentials, id, options)
 
     if (options?.ttl) this.ttl = options?.ttl
   }

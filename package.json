@@ -25,12 +25,15 @@
     "build:deno": "rm -rf dist/deno && cp -r src dist/deno && node scripts/add-ts-extension.js dist/deno",
     "build": "rm -rf dist && rollup -c && echo '{\"type\":\"commonjs\"}' > dist/cjs/package.json && rm -rf types && tsc -d --declarationDir types --declarationMap --emitDeclarationOnly && npm run build:deno",
     "lint": "eslint .",
-    "test": "npm run lint && vitest"
+    "test": "npm run lint && vitest",
+    "test:integration:local": "vitest --mode integration-local",
+    "test:integration:dev": "vitest --mode integration-dev"
   },
   "author": "",
   "license": "MIT",
   "devDependencies": {
     "@rollup/plugin-terser": "0.4.4",
+    "dotenv": "16.5.0",
     "eslint": "9.27.0",
     "mock-socket": "9.3.1",
     "neostandard": "0.12.1",

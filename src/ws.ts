@@ -1,10 +1,25 @@
 import Base from './base'
-import { ItemType, JSONObj } from './types'
+import { ItemType, JSONObj, LogLevel } from './types'
 import { encrypt, decrypt } from './encryption'
 
 export default class WebSocketFunctions extends Base {
-  constructor (credentials: { apiKey: string, apiSecret: string, projectId: string }, id?: string, options?: { passphrase?: string }) {
-    super(credentials, id, options && { passphrase: options?.passphrase })
+  constructor (
+    credentials: {
+      apiKey: string,
+      apiSecret: string,
+      projectId: string
+    },
+    id?: string | undefined,
+    options?: {
+      class?: string,
+      ttl?: number,
+      passphrase?: string,
+      signedId?: string,
+      idSignatureKeyVersion?: number,
+      logLevel?: LogLevel
+    }
+  ) {
+    super(credentials, id, options)
     ;(this as any).errorHandlers = []
   }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
-import NonLocalStorage from '../src/index'
-import uuidv4 from '../src/uuidv4'
+import NonLocalStorage from '../../src/index'
+import uuidv4 from '../../src/uuidv4'
 import mockRequest from './fixtures/requestMock'
 import mockWs from './fixtures/getWebsocketMock'
 import { setTimeout as wait } from 'node:timers/promises'
