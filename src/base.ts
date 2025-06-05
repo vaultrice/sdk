@@ -3,6 +3,7 @@ import { deriveSymmetricKey } from './encryption'
 import uuidv4 from './uuidv4'
 import { JSONObj, InstanceOptions } from './types'
 import getLogger, { Logger } from './logger'
+import decodeJwt from './decodeJwt'
 
 function getId () {
   // if no id provided, try to check if there is one in the real local storage...
@@ -21,6 +22,8 @@ export default class Base {
   protected readonly class: string = DEFAULT_DURABLE_CACHE_CLASS
   protected logger: Logger
   id: string
+  protected accessToken?: string
+  private isGettingAccessToken?: Promise<void>
 
   constructor (
     credentials: {
@@ -75,6 +78,18 @@ export default class Base {
     if (options.passphrase) (this as any).passphrase = options.passphrase
     if (options.signedId) this.signedId = options.signedId
     if (this.signedId) this.idSignatureKeyVersion = options.idSignatureKeyVersion || 0
+
+    this.isGettingAccessToken = this.getAccessToken()
+    this.isGettingAccessToken.finally(() => { this.isGettingAccessToken = undefined })
+  }
+
+  private async getAccessToken () {
+    const response = await this.request('GET', '/auth/token')
+    const accessToken = response as string
+    const decodedToken = decodeJwt(accessToken)
+    this.accessToken = accessToken
+    const expiresIn = (decodedToken.payload.exp as number) - Date.now()
+    setTimeout(() => this.getAccessToken(), (expiresIn - (2 * 60 * 1000)))
   }
 
   private async getSymKey (encryptionSettings: any) {
@@ -147,12 +162,15 @@ export default class Base {
   }
 
   async request (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {
-    const isStringBody = typeof body === 'string'
+    if (!this.accessToken && this.isGettingAccessToken) await this.isGettingAccessToken
     const headers: {
       Authorization: string; [key: string]: string
     } = {
-      Authorization: `Basic ${btoa(`${(this as any).credentials.apiKey}:${(this as any).credentials.apiSecret}`)}`
+      Authorization: this.accessToken
+        ? `Bearer ${this.accessToken}`
+        : `Basic ${btoa(`${(this as any).credentials.apiKey}:${(this as any).credentials.apiSecret}`)}`
     }
+    const isStringBody = typeof body === 'string'
     const keyVersion = (this as any)?.encryptionSettings?.keyVersion
     if (keyVersion !== undefined && keyVersion > -1) {
       headers['X-Enc-KV'] = keyVersion.toString()

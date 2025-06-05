@@ -5,6 +5,29 @@ import { JSONObj } from '../../../src/types'
 const metadata = {}
 const objects = {}
 
+function generateDummyJWT (payload) {
+  const header = {
+    jti: 'bla bla bla',
+    alg: 'ES512',
+    kid: 'v0'
+  }
+
+  // Base64URL encode a JSON object
+  const base64UrlEncode = (obj) => {
+    return Buffer.from(JSON.stringify(obj))
+      .toString('base64')
+      .replace(/=/g, '')        // Remove padding
+      .replace(/\+/g, '-')      // Replace + with -
+      .replace(/\//g, '_')      // Replace / with _
+  }
+
+  const encodedHeader = base64UrlEncode(header)
+  const encodedPayload = base64UrlEncode(payload)
+  const dummySignature = base64UrlEncode('dummysignature123') // This can be any string
+
+  return `${encodedHeader}.${encodedPayload}.${dummySignature}`
+}
+
 export default () => {
   const mock = vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
     async function (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {
@@ -12,6 +35,19 @@ export default () => {
       const pathParts = path.split('/')
       // const className = pathParts[2]
       const objectId = pathParts[3]
+
+      // getAccessToken()
+      if (pathParts[1] === 'auth' && pathParts[2] === 'token') {
+        return generateDummyJWT({
+          sub: this.credentials.apiKey,
+          iss: 'NonLocalStorage-Api',
+          exp: Date.now() + (1 * 60 * 60 * 1000), // 1h
+          id: this.credentials.apiKey,
+          accountId: 'some-dummy-accountId',
+          projectId: this.credentials.projectId,
+          iat: Math.round(Date.now() / 1000)
+        })
+      }
 
       // getEncryptionSettings()
       if (pathParts[1] === 'cache-encryption') {
