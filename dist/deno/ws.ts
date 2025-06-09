@@ -48,10 +48,11 @@ export default class WebSocketFunctions extends Base {
     const ws = this.getWebSocket()
     const wrappedMsg = { event: 'message', payload: msgToSend }
     if ((this as any)?.encryptionSettings?.keyVersion > -1) (wrappedMsg as any).keyVersion = (this as any)?.encryptionSettings?.keyVersion
-    if (this.signedId && this.idSignatureKeyVersion !== undefined) {
-      ;(wrappedMsg as any).signedId = this.signedId
-      ;(wrappedMsg as any).idSignatureKeyVersion = this.idSignatureKeyVersion
-    }
+    // coming on ws:// connection via protocols
+    // if (this.signedId && this.idSignatureKeyVersion !== undefined) {
+    //   ;(wrappedMsg as any).signedId = this.signedId
+    //   ;(wrappedMsg as any).idSignatureKeyVersion = this.idSignatureKeyVersion
+    // }
     ws.send(JSON.stringify(wrappedMsg))
   }
 
