@@ -171,11 +171,19 @@ export default class WebSocketFunctions extends Base {
     if ((this as any).ws) return (this as any).ws
 
     const wsBasePath = WebSocketFunctions.basePath.replace('http', 'ws')
-    const ws = (this as any).ws = new WebSocket(
-      `${wsBasePath}/project/${(this as any).credentials.projectId}/ws/${this.class}/${this.id}`,
+
+    const protocols = [
       this.accessToken
         ? encodeURIComponent(`Bearer ${this.accessToken}`)
         : encodeURIComponent(`Basic ${btoa(`${(this as any).credentials.apiKey}:${(this as any).credentials.apiSecret}`)}`)
+    ]
+    if (this.signedId && this.idSignatureKeyVersion !== undefined) {
+      protocols.push(encodeURIComponent(`X-Id-Sig ${this.signedId}`))
+      protocols.push(encodeURIComponent(`X-Id-Sig-KV ${this.idSignatureKeyVersion.toString()}`))
+    }
+    const ws = (this as any).ws = new WebSocket(
+      `${wsBasePath}/project/${(this as any).credentials.projectId}/ws/${this.class}/${this.id}`,
+      protocols
     )
     ws.addEventListener('close', () => {
       delete (this as any).ws
