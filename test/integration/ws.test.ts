@@ -122,11 +122,12 @@ describe(`NonLocalStorage WS (${process.env.MODE})`, () => {
       })
 
       await nls.removeItem('my-prop-2')
-      // await nls.removeItems(['my-prop-3'])
+      await nls.removeItems(['my-prop-3'])
       await wait(500)
       expect(receivedMesssagesOnClient).to.have.lengthOf(0)
-      expect(removeItemEvts1).to.have.lengthOf(1)
+      expect(removeItemEvts1).to.have.lengthOf(2)
       expect(removeItemEvts1).to.contain('my-prop-2')
+      expect(removeItemEvts1).to.contain('my-prop-3')
       expect(removeItemEvts2).to.have.lengthOf(1)
       expect(removeItemEvts2).to.contain('my-prop-2')
 
