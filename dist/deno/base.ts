@@ -184,7 +184,7 @@ export default class Base {
       `${Base.basePath}/project/${(this as any).credentials.projectId}${path}`, {
         method,
         headers,
-        body: isStringBody ? body : JSON.stringify(body)
+        body: !body ? undefined : isStringBody ? body : JSON.stringify(body)
       }
     )
     const contentType = response.headers.get('content-type')

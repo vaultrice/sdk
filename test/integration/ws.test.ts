@@ -112,23 +112,23 @@ describe(`NonLocalStorage WS (${process.env.MODE})`, () => {
       expect(setItemEvts2[0]).to.have.property('value', 'my-value-2')
       expect(setItemEvts2[0]).to.have.property('expiresAt')
 
-      // const removeItemEvts1: string[] = []
-      // nls.on('removeItem', (m) => {
-      //   removeItemEvts1.push(m.prop)
-      // })
-      // const removeItemEvts2: string[] = []
-      // nls.on('removeItem', 'my-prop-2', () => {
-      //   removeItemEvts2.push('my-prop-2')
-      // })
+      const removeItemEvts1: string[] = []
+      nls.on('removeItem', (m) => {
+        removeItemEvts1.push(m.prop)
+      })
+      const removeItemEvts2: string[] = []
+      nls.on('removeItem', 'my-prop-2', () => {
+        removeItemEvts2.push('my-prop-2')
+      })
 
-      // await nls.removeItem('my-prop-2')
+      await nls.removeItem('my-prop-2')
       // await nls.removeItems(['my-prop-3'])
-      // await wait(300)
-      // expect(receivedMesssagesOnClient).to.have.lengthOf(0)
-      // expect(removeItemEvts1).to.have.lengthOf(1)
-      // expect(removeItemEvts1).to.contain('my-prop-2')
-      // expect(removeItemEvts2).to.have.lengthOf(1)
-      // expect(removeItemEvts2).to.contain('my-prop-2')
+      await wait(500)
+      expect(receivedMesssagesOnClient).to.have.lengthOf(0)
+      expect(removeItemEvts1).to.have.lengthOf(1)
+      expect(removeItemEvts1).to.contain('my-prop-2')
+      expect(removeItemEvts2).to.have.lengthOf(1)
+      expect(removeItemEvts2).to.contain('my-prop-2')
 
       nls.disconnect()
     })

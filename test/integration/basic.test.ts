@@ -45,9 +45,9 @@ describe(`NonLocalStorage (${process.env.MODE})`, () => {
       // expect(items?.['my-prop-2']).to.have.property('value', 'my-value-2')
       // expect(items?.['my-prop-2']).to.have.property('expiresAt')
 
-      // await nls.removeItem('my-prop-3')
-      // item = await nls.getItem('my-prop-3')
-      // expect(item).to.eql(undefined)
+      await nls.removeItem('my-prop-3')
+      item = await nls.getItem('my-prop-3')
+      expect(item).to.eql(undefined)
 
       // const setInfos = await nls.setItems({ another: { value: 'here' } })
       // expect(setInfos).to.have.property('another')
