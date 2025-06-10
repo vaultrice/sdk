@@ -24,7 +24,7 @@ export type InstanceOptions = {
   class?: string,
   ttl?: number,
   passphrase?: string,
-  signedId?: string,
+  idSignature?: string,
   idSignatureKeyVersion?: number,
   logLevel?: LogLevel
 }

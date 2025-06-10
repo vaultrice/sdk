@@ -17,7 +17,7 @@ const DEFAULT_DURABLE_CACHE_CLASS = '_undefined_'
 
 export default class Base {
   protected static basePath: string = 'http://localhost:5173'
-  protected readonly signedId?: string
+  protected readonly idSignature?: string
   protected readonly idSignatureKeyVersion?: number
   protected readonly class: string = DEFAULT_DURABLE_CACHE_CLASS
   protected logger: Logger
@@ -76,8 +76,8 @@ export default class Base {
     this.class = options.class || DEFAULT_DURABLE_CACHE_CLASS
 
     if (options.passphrase) (this as any).passphrase = options.passphrase
-    if (options.signedId) this.signedId = options.signedId
-    if (this.signedId) this.idSignatureKeyVersion = options.idSignatureKeyVersion || 0
+    if (options.idSignature) this.idSignature = options.idSignature
+    if (this.idSignature) this.idSignatureKeyVersion = options.idSignatureKeyVersion || 0
 
     this.isGettingAccessToken = this.getAccessToken()
     this.isGettingAccessToken.finally(() => { this.isGettingAccessToken = undefined })
@@ -175,8 +175,8 @@ export default class Base {
     if (keyVersion !== undefined && keyVersion > -1) {
       headers['X-Enc-KV'] = keyVersion.toString()
     }
-    if (this.signedId && this.idSignatureKeyVersion !== undefined) {
-      headers['X-Id-Sig'] = this.signedId
+    if (this.idSignature && this.idSignatureKeyVersion !== undefined) {
+      headers['X-Id-Sig'] = this.idSignature
       headers['X-Id-Sig-KV'] = this.idSignatureKeyVersion.toString()
     }
     if (body) headers['Content-Type'] = isStringBody ? 'text/plain' : 'application/json'
