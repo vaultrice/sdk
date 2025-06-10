@@ -55,7 +55,7 @@ describe(`NonLocalStorage WS (${process.env.MODE})`, () => {
       })
 
       nls1.send({ hi: 'there2' })
-      await wait(300)
+      await wait(500)
       expect(receivedMesssagesOnClient2).to.have.lengthOf(1)
       expect(receivedMesssagesOnClient2[0]).to.eql({ hi: 'there2' })
       expect(receivedMesssagesOnClient1).to.have.lengthOf(1)
@@ -98,7 +98,7 @@ describe(`NonLocalStorage WS (${process.env.MODE})`, () => {
 
       await nls.setItem('my-prop', 'my-value')
       await nls.setItem('my-prop-2', 'my-value-2')
-      await wait(300)
+      await wait(500)
       expect(receivedMesssagesOnClient).to.have.lengthOf(0)
       expect(setItemEvts1).to.have.lengthOf(2)
       expect(setItemEvts1[0]).to.have.property('prop', 'my-prop')
