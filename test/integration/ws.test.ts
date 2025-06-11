@@ -39,6 +39,7 @@ describe(`NonLocalStorage WS (${process.env.MODE})`, () => {
       })
 
       await nls1.send({ hi: 'there' }, { transport: 'http' })
+      await wait(500)
       expect(receivedMesssagesOnClient1).to.have.lengthOf(1)
       expect(receivedMesssagesOnClient1[0]).to.eql({ hi: 'there' })
 
