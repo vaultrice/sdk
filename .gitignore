@@ -3,7 +3,7 @@ node_modules
 npm-debug.log
 package-lock.json
 types
-scripts
+#scripts
 # !dist/
 # dist/*
 # !dist/deno/

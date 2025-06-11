@@ -1,6 +1,6 @@
-import Base from './base'
-import { ItemType, JSONObj, InstanceOptions } from './types'
-import { encrypt, decrypt } from './encryption'
+import Base from './base.ts'
+import { ItemType, JSONObj, InstanceOptions } from './types.ts'
+import { encrypt, decrypt } from './encryption.ts'
 
 export default class WebSocketFunctions extends Base {
   constructor (

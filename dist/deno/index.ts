@@ -1,5 +1,5 @@
-import WebSocketFunctions from './ws'
-import { encrypt, decrypt } from './encryption'
+import WebSocketFunctions from './ws.ts'
+import { encrypt, decrypt } from './encryption.ts'
 import {
   ValueType,
   SetReturnType,
