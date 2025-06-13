@@ -1,7 +1,7 @@
 import { getLocalId, setLocalId } from './local'
 import { deriveSymmetricKey } from './encryption'
 import uuidv4 from './uuidv4'
-import { JSONObj, InstanceOptions } from './types'
+import { JSONObj, InstanceOptions, KeyDerivationOptions } from './types'
 import getLogger, { Logger } from './logger'
 import decodeJwt from './decodeJwt'
 
@@ -17,7 +17,8 @@ const DEFAULT_DURABLE_CACHE_CLASS = '_undefined_'
 
 export default class Base {
   protected static basePath: string = 'http://localhost:5173'
-  protected readonly autoUpdateOldEncryptedValues: boolean | undefined
+  protected readonly autoUpdateOldEncryptedValues?: boolean
+  protected readonly keyDerivationOptions?: KeyDerivationOptions
   protected readonly idSignature?: string
   protected readonly idSignatureKeyVersion?: number
   protected readonly class: string = DEFAULT_DURABLE_CACHE_CLASS
@@ -77,6 +78,7 @@ export default class Base {
     this.class = options.class || DEFAULT_DURABLE_CACHE_CLASS
 
     if (options.passphrase) (this as any).passphrase = options.passphrase
+    if (options.keyDerivationOptions) this.keyDerivationOptions = options.keyDerivationOptions
     if (options.autoUpdateOldEncryptedValues === undefined) options.autoUpdateOldEncryptedValues = true
     this.autoUpdateOldEncryptedValues = options.autoUpdateOldEncryptedValues
     if (options.idSignature) this.idSignature = options.idSignature
@@ -96,7 +98,12 @@ export default class Base {
   }
 
   private async getSymKey (encryptionSettings: any) {
-    return deriveSymmetricKey((this as any).passphrase, this.id, encryptionSettings.salt)
+    return deriveSymmetricKey(
+      (this as any).passphrase,
+      this.id,
+      encryptionSettings.salt,
+      this.keyDerivationOptions
+    )
   }
 
   protected async getSymKeyForKeyVersion (keyVersion?: number) {
