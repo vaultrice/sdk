@@ -127,11 +127,13 @@ export default class Base {
   private async handleEncryptionSettings (metadata: JSONObj) {
     (this as any).encryptionSettings = {
       salt: Uint8Array.from(atob((metadata?.encryptionSettings as any)?.salt as string), c => c.charCodeAt(0)),
-      keyVersion: (metadata?.encryptionSettings as any)?.keyVersion as number
+      keyVersion: (metadata?.encryptionSettings as any)?.keyVersion as number,
+      createdAt: (metadata?.encryptionSettings as any)?.createdAt as number
     }
     ;(this as any).previousEncryptionSettings = ((metadata?.previousEncryptionSettings as object[]) || []).map((s) => ({
       salt: Uint8Array.from(atob((s as any)?.salt as string), c => c.charCodeAt(0)),
-      keyVersion: (s as any)?.keyVersion as number
+      keyVersion: (s as any)?.keyVersion as number,
+      createdAt: (s as any)?.createdAt as number
     }))
 
     ;(this as any).symKey = await this.getSymKey((this as any).encryptionSettings)
