@@ -41,7 +41,14 @@ export default class WebSocketFunctions extends Base {
     const msgToSend = (this as any).symKey ? await encrypt((this as any).symKey, JSON.stringify(msg)) : msg
 
     if (options.transport === 'http') {
-      await this.request('POST', `/message/${this.class}/${this.id}`, msgToSend)
+      try {
+        await this.request('POST', `/message/${this.class}/${this.id}`, msgToSend)
+      } catch (e) {
+        if (!e || (e as any)?.cause?.name !== 'ConflictError') throw e
+        this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
+        await this.getEncryptionSettings()
+        await this.request('POST', `/message/${this.class}/${this.id}`, msgToSend)
+      }
       return
     }
 

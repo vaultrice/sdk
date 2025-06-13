@@ -24,6 +24,7 @@ export type InstanceOptions = {
   class?: string,
   ttl?: number,
   passphrase?: string,
+  autoUpdateOldEncryptedValues?: boolean,
   idSignature?: string,
   idSignatureKeyVersion?: number,
   logLevel?: LogLevel

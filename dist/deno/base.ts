@@ -17,6 +17,7 @@ const DEFAULT_DURABLE_CACHE_CLASS = '_undefined_'
 
 export default class Base {
   protected static basePath: string = 'http://localhost:5173'
+  protected readonly autoUpdateOldEncryptedValues: boolean | undefined
   protected readonly idSignature?: string
   protected readonly idSignatureKeyVersion?: number
   protected readonly class: string = DEFAULT_DURABLE_CACHE_CLASS
@@ -47,7 +48,7 @@ export default class Base {
       apiSecret: string,
       projectId: string
     },
-    idOrOptions: string | InstanceOptions | undefined = { id: getId(), class: DEFAULT_DURABLE_CACHE_CLASS, logLevel: 'warn' }
+    idOrOptions: string | InstanceOptions | undefined = { id: getId(), class: DEFAULT_DURABLE_CACHE_CLASS, autoUpdateOldEncryptedValues: true, logLevel: 'warn' }
   ) {
     let options: InstanceOptions = { class: DEFAULT_DURABLE_CACHE_CLASS, logLevel: 'warn' }
     if (typeof idOrOptions === 'string') {
@@ -76,6 +77,8 @@ export default class Base {
     this.class = options.class || DEFAULT_DURABLE_CACHE_CLASS
 
     if (options.passphrase) (this as any).passphrase = options.passphrase
+    if (options.autoUpdateOldEncryptedValues === undefined) options.autoUpdateOldEncryptedValues = true
+    this.autoUpdateOldEncryptedValues = options.autoUpdateOldEncryptedValues
     if (options.idSignature) this.idSignature = options.idSignature
     if (this.idSignature) this.idSignatureKeyVersion = options.idSignatureKeyVersion || 0
 
@@ -199,7 +202,7 @@ export default class Base {
     }
     if (!response.ok) {
       if (typeof respBody === 'string') throw new Error(respBody)
-      if (respBody) throw new Error(respBody.message)
+      if (respBody) throw respBody
       if (response.status !== 404) throw new Error(`${response.status} - ${response.statusText}`)
     }
     return respBody

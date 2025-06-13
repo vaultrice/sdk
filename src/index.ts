@@ -53,10 +53,16 @@ export default class NonLocalStorage extends WebSocketFunctions {
     const ttl = options?.ttl || this.ttl
 
     const valueToStore = (this as any).symKey ? await encrypt((this as any).symKey, JSON.stringify(value)) : value
-    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}`, {
-      value: valueToStore,
-      ttl
-    })
+
+    let response
+    try {
+      response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}`, { value: valueToStore, ttl })
+    } catch (e) {
+      if (!e || (e as any)?.cause?.name !== 'ConflictError') throw e
+      this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
+      await this.getEncryptionSettings()
+      response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}`, { value: valueToStore, ttl })
+    }
     const item = response as JSONObj
 
     return {
@@ -78,7 +84,15 @@ export default class NonLocalStorage extends WebSocketFunctions {
       items[name].ttl ||= this.ttl
     }
 
-    const response = await this.request('POST', `/cache/${this.class}/${this.id}`, items)
+    let response
+    try {
+      response = await this.request('POST', `/cache/${this.class}/${this.id}`, items)
+    } catch (e) {
+      if (!e || (e as any)?.cause?.name !== 'ConflictError') throw e
+      this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
+      await this.getEncryptionSettings()
+      response = await this.request('POST', `/cache/${this.class}/${this.id}`, items)
+    }
     const r = response as JSONObj
     return Object.keys(r).reduce<SetItemsType>((prev, name) => {
       prev[name] = {
@@ -93,7 +107,15 @@ export default class NonLocalStorage extends WebSocketFunctions {
     if (!name) throw new Error('No name passed!')
     if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call getEncryptionSettings() first!')
 
-    const response = await this.request('GET', `/cache/${this.class}/${this.id}/${name}`)
+    let response
+    try {
+      response = await this.request('GET', `/cache/${this.class}/${this.id}/${name}`)
+    } catch (e) {
+      if (!e || (e as any)?.cause?.name !== 'ConflictError') throw e
+      this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
+      await this.getEncryptionSettings()
+      response = await this.request('GET', `/cache/${this.class}/${this.id}/${name}`)
+    }
     const item = response as JSONObj
 
     const v = item?.value
@@ -104,7 +126,12 @@ export default class NonLocalStorage extends WebSocketFunctions {
 
     const hasOldEncryption = (item?.keyVersion as number) > -1 && item.keyVersion !== (this as any).encryptionSettings?.keyVersion
     if (hasOldEncryption) {
-      this.logger.log('warn', `Item "${name}" has an old encryption and can be updated by storing it again.`)
+      if (this.autoUpdateOldEncryptedValues) {
+        this.logger.log('info', `Item "${name}" has an old encryption and will be automatically updated now by setting it again.`)
+        await this.setItem(name, value, { ttl: (item.expiresAt as number) - Date.now() })
+      } else {
+        this.logger.log('warn', `Item "${name}" has an old encryption and can be updated by setting it again.`)
+      }
     }
 
     return {
@@ -118,10 +145,20 @@ export default class NonLocalStorage extends WebSocketFunctions {
     if (!names || names.length === 0) throw new Error('No names passed!')
     if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call getEncryptionSettings() first!')
 
-    const response = await this.request('POST', `/cache-query/${this.class}/${this.id}`, names)
+    let response
+    try {
+      response = await this.request('POST', `/cache-query/${this.class}/${this.id}`, names)
+    } catch (e) {
+      if (!e || (e as any)?.cause?.name !== 'ConflictError') throw e
+      this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
+      await this.getEncryptionSettings()
+      response = await this.request('POST', `/cache-query/${this.class}/${this.id}`, names)
+    }
     const items = response as JSONObj
 
     if (Object.keys(items).length === 0) return
+
+    const oldEncryptedItems: Record<string, JSONObj> = {}
 
     const result: ItemsType = {}
     for (const name of Object.keys(items)) {
@@ -133,14 +170,29 @@ export default class NonLocalStorage extends WebSocketFunctions {
       const value = symKey ? JSON.parse(await decrypt(symKey, v as string)) : v
 
       const hasOldEncryption = (item?.keyVersion as number) > -1 && item.keyVersion !== (this as any).encryptionSettings?.keyVersion
-      if (hasOldEncryption) {
-        this.logger.log('warn', `Item "${name}" has an old encryption and can be updated by storing it again.`)
-      }
+      if (hasOldEncryption) oldEncryptedItems[name] = item
 
       result[name] = {
         value,
         expiresAt: item.expiresAt as number,
         keyVersion: item.keyVersion as number
+      }
+    }
+
+    const oldEncryptedItemNames = Object.keys(oldEncryptedItems)
+    if (oldEncryptedItemNames.length > 0) {
+      if (this.autoUpdateOldEncryptedValues) {
+        this.logger.log('info', `These items "${oldEncryptedItemNames.join(',')}" have an old encryption and will be automatically updated now by setting them again.`)
+        const itemsToSet = oldEncryptedItemNames.reduce((prev, cur) => {
+          prev[cur] = {
+            value: result[cur].value,
+            ttl: (oldEncryptedItems[cur].expiresAt as number) - Date.now()
+          }
+          return prev
+        }, {} as Record<string, { value: ValueType, ttl?: number }>)
+        await this.setItems(itemsToSet)
+      } else {
+        this.logger.log('warn', `These items "${oldEncryptedItemNames.join(',')}" have an old encryption and can be updated by setting them again.`)
       }
     }
 
@@ -150,7 +202,15 @@ export default class NonLocalStorage extends WebSocketFunctions {
   async getAllItems (options?: { prefix?: string }): Promise<ItemsType | undefined> {
     if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call getEncryptionSettings() first!')
 
-    const response = await this.request('GET', `/cache/${this.class}/${this.id}${options?.prefix ? `?prefix=${options?.prefix}` : ''}`)
+    let response
+    try {
+      response = await this.request('GET', `/cache/${this.class}/${this.id}${options?.prefix ? `?prefix=${options?.prefix}` : ''}`)
+    } catch (e) {
+      if (!e || (e as any)?.cause?.name !== 'ConflictError') throw e
+      this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
+      await this.getEncryptionSettings()
+      response = await this.request('GET', `/cache/${this.class}/${this.id}${options?.prefix ? `?prefix=${options?.prefix}` : ''}`)
+    }
     const items = response as JSONObj
 
     if (Object.keys(items).length === 0) return
