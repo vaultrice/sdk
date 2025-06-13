@@ -47,7 +47,6 @@ export type InstanceOptions = {
   class?: string,
   ttl?: number,
   passphrase?: string,
-  getEncryptionHandler?: (encryptionSettings: EncryptionSettings) => Promise<EncryptionHandler>
   /**
    * @default {
    *   iterations: 100000,
@@ -56,6 +55,7 @@ export type InstanceOptions = {
    * }
    */
   keyDerivationOptions?: KeyDerivationOptions,
+  getEncryptionHandler?: (encryptionSettings: EncryptionSettings) => Promise<EncryptionHandler>
   /**
    * @default true
    */
