@@ -1,7 +1,7 @@
 import { getLocalId, setLocalId } from './local.ts'
-import { deriveSymmetricKey } from './encryption.ts'
+import { deriveSymmetricKey, encrypt, decrypt } from './encryption.ts'
 import uuidv4 from './uuidv4.ts'
-import { JSONObj, InstanceOptions, KeyDerivationOptions } from './types.ts'
+import { JSONObj, InstanceOptions, KeyDerivationOptions, EncryptionSettingsInfos, EncryptionSettings, EncryptionHandler } from './types.ts'
 import getLogger, { Logger } from './logger.ts'
 import decodeJwt from './decodeJwt.ts'
 
@@ -17,14 +17,16 @@ const DEFAULT_DURABLE_CACHE_CLASS = '_undefined_'
 
 export default class Base {
   protected static basePath: string = 'http://localhost:5173'
+  protected getEncryptionHandler?: (encryptionSettings: EncryptionSettings) => Promise<EncryptionHandler>
   protected readonly autoUpdateOldEncryptedValues?: boolean
   protected readonly keyDerivationOptions?: KeyDerivationOptions
   protected readonly idSignature?: string
   protected readonly idSignatureKeyVersion?: number
   protected readonly class: string = DEFAULT_DURABLE_CACHE_CLASS
-  protected logger: Logger
+  protected readonly logger: Logger
   id: string
   protected accessToken?: string
+  protected encryptionHandler?: EncryptionHandler
   private isGettingAccessToken?: Promise<void>
 
   constructor (
@@ -77,8 +79,27 @@ export default class Base {
 
     this.class = options.class || DEFAULT_DURABLE_CACHE_CLASS
 
-    if (options.passphrase) (this as any).passphrase = options.passphrase
-    if (options.keyDerivationOptions) this.keyDerivationOptions = options.keyDerivationOptions
+    if (options.passphrase && options.getEncryptionHandler) {
+      throw new Error('Either define a passphrase or a getEncryptionHandler, but not both!')
+    }
+    if (options.getEncryptionHandler) this.getEncryptionHandler = options.getEncryptionHandler
+
+    if (options.passphrase) {
+      this.getEncryptionHandler = async (encSettings: EncryptionSettings) => {
+        const symKey = await deriveSymmetricKey(
+          options.passphrase as string,
+          this.id,
+          encSettings.salt,
+          options.keyDerivationOptions
+        )
+        const optForEnc = options.keyDerivationOptions?.derivedKeyType?.name ? { algorithm: options.keyDerivationOptions?.derivedKeyType?.name } : undefined
+        return {
+          encrypt: (value) => encrypt(symKey, value, optForEnc),
+          decrypt: (value) => decrypt(symKey, value, optForEnc)
+        }
+      }
+    }
+
     if (options.autoUpdateOldEncryptedValues === undefined) options.autoUpdateOldEncryptedValues = true
     this.autoUpdateOldEncryptedValues = options.autoUpdateOldEncryptedValues
     if (options.idSignature) this.idSignature = options.idSignature
@@ -97,16 +118,7 @@ export default class Base {
     setTimeout(() => this.getAccessToken(), (expiresIn - (2 * 60 * 1000)))
   }
 
-  private async getSymKey (encryptionSettings: any) {
-    return deriveSymmetricKey(
-      (this as any).passphrase,
-      this.id,
-      encryptionSettings.salt,
-      this.keyDerivationOptions
-    )
-  }
-
-  protected async getSymKeyForKeyVersion (keyVersion?: number) {
+  protected async getEncryptionHandlerForKeyVersion (keyVersion?: number): Promise<EncryptionHandler | undefined> {
     if ((keyVersion as number) > -1) {
       if (keyVersion !== (this as any).encryptionSettings.keyVersion) {
         if (!(this as any).previousEncryptionSettings || (this as any).previousEncryptionSettings.length === 0) {
@@ -125,52 +137,61 @@ export default class Base {
         if (!foundSettings) {
           throw new Error(`Wrong keyVersion! Found ${keyVersion} but you're using ${(this as any).encryptionSettings.keyVersion}`)
         }
-        return this.getSymKey(foundSettings)
+        if (!this.getEncryptionHandler) return
+        return this.getEncryptionHandler(foundSettings)
       }
     }
-    return (this as any).symKey
+    return this.encryptionHandler
   }
 
-  private async handleEncryptionSettings (metadata: JSONObj) {
-    (this as any).encryptionSettings = {
-      salt: Uint8Array.from(atob((metadata?.encryptionSettings as any)?.salt as string), c => c.charCodeAt(0)),
-      keyVersion: (metadata?.encryptionSettings as any)?.keyVersion as number,
-      createdAt: (metadata?.encryptionSettings as any)?.createdAt as number
-    }
-    ;(this as any).previousEncryptionSettings = ((metadata?.previousEncryptionSettings as object[]) || []).map((s) => ({
-      salt: Uint8Array.from(atob((s as any)?.salt as string), c => c.charCodeAt(0)),
-      keyVersion: (s as any)?.keyVersion as number,
-      createdAt: (s as any)?.createdAt as number
-    }))
+  private async handleEncryptionSettings (metadata: EncryptionSettingsInfos) {
+    if (!this.getEncryptionHandler) throw new Error('No getEncryptionHandler defined!')
+    ;(this as any).encryptionSettings = metadata.encryptionSettings
+    ;(this as any).previousEncryptionSettings = metadata.previousEncryptionSettings
+    this.encryptionHandler = await this.getEncryptionHandler(metadata.encryptionSettings)
+  }
 
-    ;(this as any).symKey = await this.getSymKey((this as any).encryptionSettings)
+  private prepareEncryptionSettings (metadata: JSONObj): EncryptionSettingsInfos {
+    return {
+      encryptionSettings: {
+        salt: Uint8Array.from(atob((metadata?.encryptionSettings as any)?.salt as string), c => c.charCodeAt(0)),
+        keyVersion: (metadata?.encryptionSettings as any)?.keyVersion as number,
+        createdAt: (metadata?.encryptionSettings as any)?.createdAt as number
+      },
+      previousEncryptionSettings: ((metadata?.previousEncryptionSettings as object[]) || []).map((s) => ({
+        salt: Uint8Array.from(atob((s as any)?.salt as string), c => c.charCodeAt(0)),
+        keyVersion: (s as any)?.keyVersion as number,
+        createdAt: (s as any)?.createdAt as number
+      }))
+    }
   }
 
   /**
    * Only mandatory if using e2e encryption
    */
-  async getEncryptionSettings (saltLength: number = 16) {
-    if (!(this as any).passphrase) throw new Error('No passphrase passed! This function is only allowed with e2e encryption!')
+  async getEncryptionSettings (saltLength: number = 16): Promise<EncryptionSettingsInfos> {
+    if (!(this as any).passphrase && !this.getEncryptionHandler) throw new Error('No passphrase and no getEncryptionHandler passed! This function is only allowed with e2e encryption!')
 
-    // fetch object metadata (if not existing on server side, generate salt + keyVersion)
     const response = await this.request('POST', `/cache-encryption/${this.class}/${this.id}`, { saltLength })
     const metadata = response as JSONObj
-    // on server side check if the e2e feature is enabled/paid, if not, do not return metadata and throw an error here
-    // throw new Error('E2E feature not available!')
 
-    return this.handleEncryptionSettings(metadata)
+    const encryptionSettingsInfos = this.prepareEncryptionSettings(metadata)
+    await this.handleEncryptionSettings(encryptionSettingsInfos)
+    return encryptionSettingsInfos
   }
 
   /**
    * Only useful if using e2e encryption
    */
-  async rotateEncryption (saltLength: number = 16) {
-    if (!(this as any).passphrase) throw new Error('No passphrase passed! This function is only allowed with e2e encryption!')
+  async rotateEncryption (saltLength: number = 16): Promise<EncryptionSettingsInfos> {
+    if (!(this as any).passphrase && !this.getEncryptionHandler) throw new Error('No passphrase and no getEncryptionHandler passed! This function is only allowed with e2e encryption!')
 
     const response = await this.request('POST', `/cache-encryption-rotate/${this.class}/${this.id}`, { saltLength })
     const metadata = response as JSONObj
 
-    return this.handleEncryptionSettings(metadata)
+    const encryptionSettingsInfos = this.prepareEncryptionSettings(metadata)
+    await this.handleEncryptionSettings(encryptionSettingsInfos)
+    return encryptionSettingsInfos
   }
 
   async request (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {

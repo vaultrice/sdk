@@ -1,6 +1,5 @@
 import Base from './base'
 import { ItemType, JSONObj, InstanceOptions } from './types'
-import { encrypt, decrypt } from './encryption'
 
 export default class WebSocketFunctions extends Base {
   constructor (
@@ -36,9 +35,9 @@ export default class WebSocketFunctions extends Base {
   }
 
   async send (msg: JSONObj, options: { transport?: 'ws' | 'http' } = { transport: 'ws' }): Promise<undefined> {
-    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call getEncryptionSettings() first!')
+    if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
 
-    const msgToSend = (this as any).symKey ? await encrypt((this as any).symKey, JSON.stringify(msg)) : msg
+    const msgToSend = this.encryptionHandler ? await this.encryptionHandler.encrypt(JSON.stringify(msg)) : msg
 
     if (options.transport === 'http') {
       try {
@@ -101,21 +100,24 @@ export default class WebSocketFunctions extends Base {
       const keyVersion = completePayload ? msg.keyVersion : msg.payload.keyVersion
       if (keyVersion === undefined) return hndl(msg.payload)
       if (keyVersion > -1) {
-        if (!(this as any).passphrase) return (this as any).errorHandlers.map((h: (e: Error) => {}) => h(new Error('Encrypted data, but no passhprase configured!')))
-        if (!(this as any).symKey) return (this as any).errorHandlers.map((h: (e: Error) => {}) => h(new Error('Encrypted data, but getEncryptionSettings() not called!')))
-        if (keyVersion !== (this as any)?.encryptionSettings?.keyVersion) return (this as any).errorHandlers.map((h: (e: Error) => {}) => h(new Error('Wrong keyVersion! Call getEncryptionSettings() again!')))
+        if (!this.getEncryptionHandler) return (this as any).errorHandlers.map((h: (e: Error) => {}) => h(new Error('Encrypted data, but no passphrase or getEncryptionHandler configured!')))
+        if (!this.encryptionHandler) return (this as any).errorHandlers.map((h: (e: Error) => {}) => h(new Error('Encrypted data, but getEncryptionSettings() not called!')))
+
         let toDec = msg.payload.value
         if (completePayload) toDec = msg.payload
-        decrypt((this as any).symKey, toDec).then((decrypted) => {
-          if (completePayload) {
-            msg.payload = JSON.parse(decrypted)
-          } else {
-            msg.payload.value = JSON.parse(decrypted)
-          }
-          hndl(msg.payload)
-        }).catch((err) => {
-          (this as any).errorHandlers.map((h: (e: Error) => {}) => h(err))
-        })
+        this.getEncryptionHandlerForKeyVersion(keyVersion)
+          .then((encryptionHandler) => encryptionHandler?.decrypt(toDec))
+          .then((decrypted) => {
+            if (completePayload) {
+              msg.payload = JSON.parse(decrypted as string)
+            } else {
+              msg.payload.value = JSON.parse(decrypted as string)
+            }
+            hndl(msg.payload)
+          })
+          .catch((err) => {
+            (this as any).errorHandlers.map((h: (e: Error) => {}) => h(err))
+          })
       }
     }
 

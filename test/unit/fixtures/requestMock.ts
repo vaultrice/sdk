@@ -55,7 +55,8 @@ export default () => {
         const meta = metadata[`${this.credentials.projectId}:${this.class}`][objectId] || {}
         meta.encryptionSettings ||= {
           salt: btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))),
-          keyVersion: 0
+          keyVersion: 0,
+          createdAt: Date.now()
         }
         metadata[`${this.credentials.projectId}:${this.class}`][objectId] = meta
         return meta
@@ -69,7 +70,8 @@ export default () => {
         if (meta.encryptionSettings) meta.previousEncryptionSettings.push(meta.encryptionSettings)
         meta.encryptionSettings = {
           salt: btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(16)))),
-          keyVersion: meta?.encryptionSettings?.keyVersion > -1 ? (meta?.encryptionSettings?.keyVersion + 1) : 0
+          keyVersion: meta?.encryptionSettings?.keyVersion > -1 ? (meta?.encryptionSettings?.keyVersion + 1) : 0,
+          createdAt: meta?.encryptionSettings?.createdAt || Date.now()
         }
         metadata[`${this.credentials.projectId}:${this.class}`][objectId] = meta
         return meta

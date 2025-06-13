@@ -1,5 +1,4 @@
 import WebSocketFunctions from './ws'
-import { encrypt, decrypt } from './encryption'
 import {
   ValueType,
   SetReturnType,
@@ -48,11 +47,11 @@ export default class NonLocalStorage extends WebSocketFunctions {
   async setItem (name: string, value: ValueType, options?: { ttl?: number }): Promise<SetReturnType> {
     if (!name) throw new Error('No name passed!')
     if (!value) throw new Error('No value passed!')
-    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call getEncryptionSettings() first!')
+    if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
 
     const ttl = options?.ttl || this.ttl
 
-    const valueToStore = (this as any).symKey ? await encrypt((this as any).symKey, JSON.stringify(value)) : value
+    const valueToStore = this.encryptionHandler ? await this.encryptionHandler.encrypt(JSON.stringify(value)) : value
 
     let response
     try {
@@ -73,12 +72,12 @@ export default class NonLocalStorage extends WebSocketFunctions {
 
   async setItems (items: Record<string, { value: ValueType, ttl?: number }>): Promise<SetItemsType | undefined> {
     if (!items || Object.keys(items).length === 0) throw new Error('No items passed!')
-    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call getEncryptionSettings() first!')
+    if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
 
     // Process each item, encrypting values if necessary
     for (const name of Object.keys(items)) {
-      const valueToStore = (this as any).symKey
-        ? await encrypt((this as any).symKey, JSON.stringify(items[name].value))
+      const valueToStore = this.encryptionHandler
+        ? await this.encryptionHandler.encrypt(JSON.stringify(items[name].value))
         : items[name].value
       items[name].value = valueToStore
       items[name].ttl ||= this.ttl
@@ -105,7 +104,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
 
   async getItem<T = ValueType> (name: string): Promise<ItemType<T> | undefined> {
     if (!name) throw new Error('No name passed!')
-    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call getEncryptionSettings() first!')
+    if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
 
     let response
     try {
@@ -121,8 +120,8 @@ export default class NonLocalStorage extends WebSocketFunctions {
     const v = item?.value
     if (!v) return
 
-    const symKey = await this.getSymKeyForKeyVersion(item.keyVersion as number)
-    const value = symKey ? JSON.parse(await decrypt(symKey, v as string)) : v
+    const encryptionHandler = await this.getEncryptionHandlerForKeyVersion(item.keyVersion as number)
+    const value = encryptionHandler ? JSON.parse(await encryptionHandler.decrypt(v as string)) : v
 
     const hasOldEncryption = (item?.keyVersion as number) > -1 && item.keyVersion !== (this as any).encryptionSettings?.keyVersion
     if (hasOldEncryption) {
@@ -143,7 +142,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
 
   async getItems (names: string[]): Promise<ItemsType | undefined> {
     if (!names || names.length === 0) throw new Error('No names passed!')
-    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call getEncryptionSettings() first!')
+    if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
 
     let response
     try {
@@ -166,8 +165,8 @@ export default class NonLocalStorage extends WebSocketFunctions {
       const v = item?.value
       if (!v) continue
 
-      const symKey = await this.getSymKeyForKeyVersion(item.keyVersion as number)
-      const value = symKey ? JSON.parse(await decrypt(symKey, v as string)) : v
+      const encryptionHandler = await this.getEncryptionHandlerForKeyVersion(item.keyVersion as number)
+      const value = encryptionHandler ? JSON.parse(await encryptionHandler.decrypt(v as string)) : v
 
       const hasOldEncryption = (item?.keyVersion as number) > -1 && item.keyVersion !== (this as any).encryptionSettings?.keyVersion
       if (hasOldEncryption) oldEncryptedItems[name] = item
@@ -200,7 +199,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
   }
 
   async getAllItems (options?: { prefix?: string }): Promise<ItemsType | undefined> {
-    if ((this as any).passphrase && !(this as any).symKey) throw new Error('Call getEncryptionSettings() first!')
+    if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
 
     let response
     try {
@@ -221,8 +220,8 @@ export default class NonLocalStorage extends WebSocketFunctions {
       const v = item?.value
       if (!v) continue
 
-      const symKey = await this.getSymKeyForKeyVersion(item.keyVersion as number)
-      const value = symKey ? JSON.parse(await decrypt(symKey, v as string)) : v
+      const encryptionHandler = await this.getEncryptionHandlerForKeyVersion(item.keyVersion as number)
+      const value = encryptionHandler ? JSON.parse(await encryptionHandler.decrypt(v as string)) : v
 
       result[name] = {
         value,

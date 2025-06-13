@@ -34,6 +34,11 @@ export type KeyDerivationOptions = {
   derivedKeyType?: AesDerivedKeyParams
 }
 
+export type EncryptionHandler = {
+  encrypt: ((v: string) => Promise<string>)
+  decrypt: ((v: string) => Promise<string>)
+}
+
 export type InstanceOptions = {
   id?: string,
   /**
@@ -42,6 +47,7 @@ export type InstanceOptions = {
   class?: string,
   ttl?: number,
   passphrase?: string,
+  getEncryptionHandler?: (encryptionSettings: EncryptionSettings) => Promise<EncryptionHandler>
   /**
    * @default {
    *   iterations: 100000,
@@ -60,4 +66,15 @@ export type InstanceOptions = {
    * @default 'warn'
    */
   logLevel?: LogLevel
+}
+
+export type EncryptionSettings = {
+  salt: Uint8Array,
+  keyVersion: number,
+  createdAt: number
+}
+
+export type EncryptionSettingsInfos = {
+  encryptionSettings: EncryptionSettings,
+  previousEncryptionSettings?: EncryptionSettings[]
 }
