@@ -60,13 +60,27 @@ describe('NonLocalStorage', () => {
       item = await nls.getItem('my-prop-3')
       expect(item).to.eql(undefined)
 
-      const setInfos = await nls.setItems({ another: { value: 'here' } })
+      const setInfos = await nls.setItems({ another: { value: 'here' }, obj: { value: { some: 'thing' } } })
       expect(setInfos).to.have.property('another')
       expect(setInfos?.another).not.to.have.property('value')
       expect(setInfos?.another).to.have.property('expiresAt')
+      expect(setInfos).to.have.property('obj')
+      expect(setInfos?.obj).not.to.have.property('value')
+      expect(setInfos?.obj).to.have.property('expiresAt')
 
       item = await nls.getItem('another')
       expect(item?.value).to.eql('here')
+
+      item = await nls.getItem('obj')
+      expect(item?.value).to.eql({ some: 'thing' })
+
+      const incr = await nls.incrementItem('counter', 7)
+      expect(incr).to.have.property('expiresAt')
+      expect(incr).to.have.property('value', 7)
+      await nls.decrementItem('counter', 1)
+      const counter = await nls.getItem('counter')
+      expect(counter).to.have.property('expiresAt')
+      expect(counter).to.have.property('value', 6)
 
       await nls.removeItems(['another'])
       item = await nls.getItem('another')

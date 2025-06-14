@@ -71,6 +71,13 @@ describe(`NonLocalStorage (${process.env.MODE})`, () => {
       expect(keys).to.contain('my-prop')
       expect(keys).to.contain('my-prop-2')
 
+      const incr = await nls.incrementItem('counter')
+      expect(incr).to.have.property('value', 1)
+      expect(incr).to.have.property('expiresAt')
+      const decr = await nls.decrementItem('counter', 4)
+      expect(decr).to.have.property('value', -3)
+      expect(decr).to.have.property('expiresAt')
+
       await nls.clear()
       item = await nls.getItem('my-prop-2')
       expect(item).to.eql(undefined)

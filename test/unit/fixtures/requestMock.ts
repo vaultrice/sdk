@@ -101,6 +101,48 @@ export default () => {
         }
       }
 
+      // increment()
+      if (pathParts[1] === 'cache' && pathParts.length === 6 && method === 'POST' && pathParts.at(-1) === 'increment') {
+        const propName = pathParts[4]
+        objects[`${this.credentials.projectId}:${this.class}`] ||= {}
+        objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
+        objects[`${this.credentials.projectId}:${this.class}`][objectId][propName] ||= {}
+        objects[`${this.credentials.projectId}:${this.class}`][objectId][propName].value ||= 0
+        objects[`${this.credentials.projectId}:${this.class}`][objectId][propName].value += (body as any)?.value
+        if ((body as any)?.ttl) {
+          objects[`${this.credentials.projectId}:${this.class}`][objectId][propName].ttl = (body as any)?.ttl
+        }
+        objects[`${this.credentials.projectId}:${this.class}`][objectId][propName].expiresAt = Date.now() + (objects[`${this.credentials.projectId}:${this.class}`][objectId][propName]?.ttl || 10000)
+        objects[`${this.credentials.projectId}:${this.class}`][objectId][propName].keyVersion = keyVersion
+        send({ event: 'setItem', payload: { prop: propName, ...objects[`${this.credentials.projectId}:${this.class}`][objectId][propName] } })
+        return {
+          value: objects[`${this.credentials.projectId}:${this.class}`][objectId][propName]?.value,
+          expiresAt: objects[`${this.credentials.projectId}:${this.class}`][objectId][propName]?.expiresAt,
+          keyVersion
+        }
+      }
+
+      // decrement()
+      if (pathParts[1] === 'cache' && pathParts.length === 6 && method === 'POST' && pathParts.at(-1) === 'decrement') {
+        const propName = pathParts[4]
+        objects[`${this.credentials.projectId}:${this.class}`] ||= {}
+        objects[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
+        objects[`${this.credentials.projectId}:${this.class}`][objectId][propName] ||= {}
+        objects[`${this.credentials.projectId}:${this.class}`][objectId][propName].value ||= 0
+        objects[`${this.credentials.projectId}:${this.class}`][objectId][propName].value -= (body as any)?.value
+        if ((body as any)?.ttl) {
+          objects[`${this.credentials.projectId}:${this.class}`][objectId][propName].ttl = (body as any)?.ttl
+        }
+        objects[`${this.credentials.projectId}:${this.class}`][objectId][propName].expiresAt = Date.now() + (objects[`${this.credentials.projectId}:${this.class}`][objectId][propName]?.ttl || 10000)
+        objects[`${this.credentials.projectId}:${this.class}`][objectId][propName].keyVersion = keyVersion
+        send({ event: 'setItem', payload: { prop: propName, ...objects[`${this.credentials.projectId}:${this.class}`][objectId][propName] } })
+        return {
+          value: objects[`${this.credentials.projectId}:${this.class}`][objectId][propName]?.value,
+          expiresAt: objects[`${this.credentials.projectId}:${this.class}`][objectId][propName]?.expiresAt,
+          keyVersion
+        }
+      }
+
       // setItems()
       if (pathParts[1] === 'cache' && pathParts.length === 4 && method === 'POST') {
         objects[`${this.credentials.projectId}:${this.class}`] ||= {}

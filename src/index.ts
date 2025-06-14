@@ -250,6 +250,40 @@ export default class NonLocalStorage extends WebSocketFunctions {
     await this.request('DELETE', `/cache/${this.class}/${this.id}`, names)
   }
 
+  async incrementItem (name: string, value: number = 1, options?: { ttl?: number }): Promise<ItemType> {
+    if (!name) throw new Error('No name passed!')
+    if (value === undefined || value === null) throw new Error('No value passed!')
+    if (typeof value !== 'number') throw new Error('Value needs to be a number!')
+
+    const ttl = options?.ttl || this.ttl
+
+    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}/increment`, { value, ttl })
+    const item = response as JSONObj
+
+    return {
+      value: item?.value as number,
+      expiresAt: item?.expiresAt as number,
+      keyVersion: item?.keyVersion as number ?? undefined
+    }
+  }
+
+  async decrementItem (name: string, value: number = 1, options?: { ttl?: number }): Promise<ItemType> {
+    if (!name) throw new Error('No name passed!')
+    if (value === undefined || value === null) throw new Error('No value passed!')
+    if (typeof value !== 'number') throw new Error('Value needs to be a number!')
+
+    const ttl = options?.ttl || this.ttl
+
+    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}/decrement`, { value, ttl })
+    const item = response as JSONObj
+
+    return {
+      value: item?.value as number,
+      expiresAt: item?.expiresAt as number,
+      keyVersion: item?.keyVersion as number ?? undefined
+    }
+  }
+
   async clear (): Promise<undefined> {
     await this.request('DELETE', `/cache/${this.class}/${this.id}`)
   }
