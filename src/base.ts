@@ -106,7 +106,7 @@ export default class Base {
     if (this.idSignature) this.idSignatureKeyVersion = options.idSignatureKeyVersion || 0
 
     this.isGettingAccessToken = this.getAccessToken()
-    this.isGettingAccessToken.finally(() => { this.isGettingAccessToken = undefined })
+    this.isGettingAccessToken.then(() => { this.isGettingAccessToken = undefined }, () => { this.isGettingAccessToken = undefined })
   }
 
   private async getAccessToken () {

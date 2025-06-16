@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest'
-import NonLocalStorage from '../../src/index'
-import Base from '../../src/base'
+import { NonLocalStorage } from '../../src/index'
+import Base from '../../src/Base'
 import uuidv4 from '../../src/uuidv4'
 import { setTimeout as wait } from 'node:timers/promises'
 

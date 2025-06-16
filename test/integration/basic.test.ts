@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from 'vitest'
-import NonLocalStorage from '../../src/index'
-import Base from '../../src/base'
+import { NonLocalStorage } from '../../src/index'
+import Base from '../../src/Base'
 
 describe(`NonLocalStorage (${process.env.MODE})`, () => {
   const basePath = process.env.BASE_PATH as string

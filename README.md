@@ -20,7 +20,7 @@ npm install non-local-storage
 ## Quick Start
 
 ```javascript
-import NonLocalStorage from 'non-local-storage'
+import { NonLocalStorage } from 'non-local-storage'
 
 // Initialize with your credentials
 const nls = new NonLocalStorage({
@@ -208,3 +208,58 @@ The SDK emits various events you can listen to:
 - `message` - Custom message received
 - `setItem` - Item was stored (with optional key filter)
 - `removeItem` - Item was removed (with optional key filter)
+
+
+## SyncObject API
+
+```javascript
+import { createSyncObject } from 'non-local-storage'
+
+// Same options like NonLocalStorage class
+const so1 = await createSyncObject({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  projectId: 'your-project-id'
+}, 'your-id') // if not provided it will generate a new id
+so1.myProp = 'hello'
+
+const so2 = await createSyncObject({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  projectId: 'your-project-id'
+}, 'your-id')
+
+console.log(so2.myProp) // 'hello'
+
+so2.anotherProp = 'world'
+// after a couple of milliseconds...
+console.log(so1.anotherProp) // 'world'
+```
+
+### Provide TS interface
+
+```typescript
+import { createSyncObject } from 'non-local-storage'
+
+interface MyObj { myProp?: string, anotherProp?: string }
+
+// Same options like NonLocalStorage class
+const so1 = await createSyncObject<MyObj>({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  projectId: 'your-project-id'
+}, 'your-id') // if not provided it will generate a new id
+so1.myProp = 'hello'
+
+const so2 = await createSyncObject<MyObj>({
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret',
+  projectId: 'your-project-id'
+}, 'your-id')
+
+console.log(so2.myProp) // 'hello'
+
+so2.anotherProp = 'world'
+// after a couple of milliseconds...
+console.log(so1.anotherProp) // 'world'
+```

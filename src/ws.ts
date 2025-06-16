@@ -1,4 +1,4 @@
-import Base from './base'
+import Base from './Base'
 import { ItemType, JSONObj, InstanceOptions } from './types'
 
 export default class WebSocketFunctions extends Base {

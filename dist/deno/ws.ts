@@ -1,4 +1,4 @@
-import Base from './base.ts'
+import Base from './Base.ts'
 import { ItemType, JSONObj, InstanceOptions } from './types.ts'
 
 export default class WebSocketFunctions extends Base {

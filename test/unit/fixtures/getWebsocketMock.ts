@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import NonLocalStorage from '../../../src/index'
+import { NonLocalStorage } from '../../../src/index'
 import { WebSocket, Server } from 'mock-socket'
 
 const ws = {}

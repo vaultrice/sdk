@@ -1,3 +1,5 @@
-import NonLocalStorage from './dist/deno/index.ts'
+import nls from './dist/deno/NonLocalStorage.ts'
+import so from './dist/deno/SyncObject.ts'
 
-export default NonLocalStorage
+export const NonLocalStorage = nls
+export const createSyncObject = so
