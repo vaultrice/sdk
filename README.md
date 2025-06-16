@@ -1,265 +1,187 @@
-# NonLocalStorage JS/TS-SDK
+# NonLocalStorage JS/TS SDK
 
-A cloud-based storage SDK that provides localStorage-like API with real-time synchronization, WebSocket support, and end-to-end encryption capabilities.
+A secure, real-time, cloud-based storage SDK with a familiar `localStorage`-like API — enhanced for cross-device, cross-domain sync, and optional end-to-end encryption.
 
-## Features
+> NonLocalStorage is ideal for state sharing between tabs, browsers, devices, or domains — with built-in real-time updates and optional encryption.
 
-- **localStorage-like API** - Familiar methods for storing and retrieving data
-- **Real-time synchronization** - WebSocket support for live data updates
-- **End-to-end encryption** - Optional client-side encryption with key rotation
-- **Event system** - Listen for storage changes and custom messages
-- **TypeScript support** - Full type definitions included
-- **Cross-platform** - Works in browsers and Node.js environments
+---
 
-## Installation
+## 🔧 Installation
 
 ```bash
 npm install non-local-storage
-```
+````
 
-## Quick Start
+---
 
-```javascript
+## 🚀 Quick Start
+
+```ts
 import { NonLocalStorage } from 'non-local-storage'
 
-// Initialize with your credentials
 const nls = new NonLocalStorage({
   apiKey: 'your-api-key',
   apiSecret: 'your-api-secret',
   projectId: 'your-project-id'
-}, 'your-id') // if not provided it will generate a new id
+}, 'your-id') // optional unique object ID
 
-// Basic usage
 await nls.setItem('key', 'value')
+
 const item = await nls.getItem('key')
-console.log(item.value) // 'value'
+console.log(item?.value) // 'value'
 ```
 
-## API Reference
+---
+
+## 📋 Feature Overview
+
+| Feature                         | Description                                              |
+| ------------------------------- | -------------------------------------------------------- |
+| `localStorage`-like API         | Familiar `setItem`, `getItem`, `removeItem`, etc.        |
+| Cross-tab/browser/device/domain | Seamless state sharing across environments               |
+| Real-time sync                  | WebSocket-based updates, instant across clients          |
+| Optional end-to-end encryption  | Data encrypted client-side, never readable on the server |
+| TTL support                     | Auto-expiry per key or object                            |
+| Event system                    | Listen to changes, removals, messages                    |
+| SyncObject API                  | Reactive object that syncs automatically                 |
+| Full TypeScript support         | Strong typings, interfaces, autocompletion               |
+| Works in browsers and Node.js   | Cross-platform by design                                 |
+
+---
+
+## 📚 API Reference
 
 ### Constructor
 
-```javascript
+```ts
 new NonLocalStorage(credentials, options?)
 ```
 
 **Parameters:**
-- `credentials` - Object containing `apiKey`, `apiSecret`, and `projectId`
-- `options` - Optional configuration object
-  - `id` - Custom instance ID
-  - `class` - Storage class/namespace, defaults to `_undefined_`
-  - `ttl`- Default time-to-live (in ms), defaults to 1h = 60 * 60 * 1000
-  - `passphrase` - Passphrase for end-to-end encryption
-  - `idSignature` - Used for object id signature verification
-  - `idSignatureKeyVersion` - Used for object id signature verification
+
+* `credentials`: `{ apiKey, apiSecret, projectId }`
+* `options` *(optional)*:
+
+  * `id`: custom object ID (defaults to random)
+  * `class`: namespace for logical separation (default: `_undefined_`)
+  * `ttl`: default expiration in ms (default: 1h)
+  * `passphrase`: enables end-to-end encryption
+  * `idSignature`, `idSignatureKeyVersion`: for signed object ID access
+
+---
 
 ### Storage Methods
 
-#### `setItem(key, value, options?)`
-Store a value with the specified key.
-
-```javascript
-const result = await nls.setItem('myKey', 'myValue')
-console.log(result.expiresAt) // Expiration timestamp in ms
-```
-
-#### `getItem(key)`
-Retrieve a value by key.
-
-```javascript
-const item = await nls.getItem('myKey')
-if (item) {
-  console.log(item.value) // The stored value
-  console.log(item.expiresAt) // Expiration timestamp in ms
-}
-```
-
-#### `setItems(items)`
-Store multiple key-value pairs at once.
-
-```javascript
-const results = await nls.setItems({
-  'key1': { value: 'value1' },
-  'key2': { value: 'value2' }
-})
-```
-
-#### `getItems(keys)`
-Retrieve multiple values by their keys.
-
-```javascript
-const items = await nls.getItems(['key1', 'key2'])
-console.log(items.key1.value) // 'value1'
-```
-
-#### `removeItem(key)`
-Remove a single item.
-
-```javascript
-await nls.removeItem('myKey')
-```
-
-#### `removeItems(keys)`
-Remove multiple items.
-
-```javascript
+```ts
+await nls.setItem('key', 'value')
+await nls.getItem('key') // returns { value, expiresAt }
+await nls.setItems({ key1: { value: 'v1' }, key2: { value: 'v2' } })
+await nls.getItems(['key1', 'key2'])
+await nls.getAllKeys()
+await nls.getAllItems()
+await nls.removeItem('key')
 await nls.removeItems(['key1', 'key2'])
-```
-
-#### `getAllItems()`
-Retrieve all stored items.
-
-```javascript
-const allItems = await nls.getAllItems()
-```
-
-#### `getAllKeys()`
-Get all stored keys.
-
-```javascript
-const keys = await nls.getAllKeys()
-```
-
-#### `clear()`
-Remove all stored items.
-
-```javascript
 await nls.clear()
 ```
 
-### WebSocket Methods
+---
 
-#### `send(message, options?)`
-Send a message through WebSocket or HTTP.
+### 🔄 Real-Time & WebSocket
 
-```javascript
-// Send via WebSocket (default)
-nls.send({ message: 'Hello' })
+```ts
+nls.send({ message: 'hello' }) // via WS
+await nls.send({ message: 'hello' }, { transport: 'http' }) // fallback
 
-// Send via HTTP
-await nls.send({ message: 'Hello' }, { transport: 'http' })
-```
-
-#### `on(event, callback)` / `on(event, key, callback)`
-Listen for events.
-
-```javascript
-// Listen for connection events
 nls.on('connect', () => console.log('Connected'))
 nls.on('disconnect', () => console.log('Disconnected'))
-nls.on('error', (error) => console.log('Error:', error))
-
-// Listen for messages
-nls.on('message', (message) => console.log('Received:', message))
-
-// Listen for storage events
-nls.on('setItem', (event) => {
-  console.log(`Item set: ${event.prop} = ${event.value}`)
-})
-
-// Listen for specific key changes
-nls.on('setItem', 'myKey', (event) => {
-  console.log(`myKey updated: ${event.value}`)
-})
-
-nls.on('removeItem', (event) => {
-  console.log(`Item removed: ${event.prop}`)
-})
-```
-
-#### `disconnect()`
-Close the WebSocket connection.
-
-```javascript
+nls.on('message', msg => console.log('Received:', msg))
+nls.on('setItem', event => console.log('Item set:', event))
+nls.on('removeItem', event => console.log('Item removed:', event))
 nls.disconnect()
 ```
 
-## End-to-End Encryption
+You can also filter by key:
 
-Enable client-side encryption by providing a passphrase:
+```ts
+nls.on('setItem', 'myKey', e => console.log('myKey changed:', e.value))
+```
 
-```javascript
-const storage = new NonLocalStorage({
-  apiKey: 'your-api-key',
-  apiSecret: 'your-api-secret',
-  projectId: 'your-project-id'
-}, {
-  id: 'unique-client-id',
-  passphrase: 'your-secret-passphrase'
+---
+
+## 🔐 End-to-End Encryption (E2EE)
+
+Enable by passing a `passphrase` when constructing:
+
+```ts
+const nls = new NonLocalStorage(credentials, {
+  id: 'object-id',
+  passphrase: 'secret-passphrase'
 })
 
-// Initialize encryption settings
-await nls.getEncryptionSettings()
-
-// All data will now be encrypted before sending to the server
-await nls.setItem('secret', 'encrypted-data')
-
-// Rotate encryption keys
-await nls.rotateEncryption()
+await nls.getEncryptionSettings() // retrieves salt and version
+await nls.setItem('privateKey', 'encrypted-data')
+await nls.rotateEncryption()     // rotate key/salt
 ```
 
-## Events
+* Encryption is automatic after setup.
+* Key versioning and lazy re-encryption on read are supported.
 
-The SDK emits various events you can listen to:
+---
 
-- `connect` - WebSocket connection established
-- `disconnect` - WebSocket connection closed
-- `error` - Error occurred
-- `message` - Custom message received
-- `setItem` - Item was stored (with optional key filter)
-- `removeItem` - Item was removed (with optional key filter)
+## 🔁 SyncObject API
 
+Create a two-way reactive object:
 
-## SyncObject API
-
-```javascript
+```ts
 import { createSyncObject } from 'non-local-storage'
 
-// Same options like NonLocalStorage class
-const so1 = await createSyncObject({
-  apiKey: 'your-api-key',
-  apiSecret: 'your-api-secret',
-  projectId: 'your-project-id'
-}, 'your-id') // if not provided it will generate a new id
-so1.myProp = 'hello'
+const obj1 = await createSyncObject({ apiKey, apiSecret, projectId }, 'my-id')
+obj1.theme = 'dark'
 
-const so2 = await createSyncObject({
-  apiKey: 'your-api-key',
-  apiSecret: 'your-api-secret',
-  projectId: 'your-project-id'
-}, 'your-id')
+const obj2 = await createSyncObject({ apiKey, apiSecret, projectId }, 'my-id')
+console.log(obj2.theme) // 'dark'
 
-console.log(so2.myProp) // 'hello'
-
-so2.anotherProp = 'world'
-// after a couple of milliseconds...
-console.log(so1.anotherProp) // 'world'
+obj2.language = 'fr'
+// after a moment...
+console.log(obj1.language) // 'fr'
 ```
 
-### Provide TS interface
+With TypeScript:
 
-```typescript
-import { createSyncObject } from 'non-local-storage'
-
-interface MyObj { myProp?: string, anotherProp?: string }
-
-// Same options like NonLocalStorage class
-const so1 = await createSyncObject<MyObj>({
-  apiKey: 'your-api-key',
-  apiSecret: 'your-api-secret',
-  projectId: 'your-project-id'
-}, 'your-id') // if not provided it will generate a new id
-so1.myProp = 'hello'
-
-const so2 = await createSyncObject<MyObj>({
-  apiKey: 'your-api-key',
-  apiSecret: 'your-api-secret',
-  projectId: 'your-project-id'
-}, 'your-id')
-
-console.log(so2.myProp) // 'hello'
-
-so2.anotherProp = 'world'
-// after a couple of milliseconds...
-console.log(so1.anotherProp) // 'world'
+```ts
+interface MySettings { theme?: string, language?: string }
+const userPrefs = await createSyncObject<MySettings>(credentials, 'prefs-id')
 ```
+
+---
+
+## 🧠 Tips & Notes
+
+* **Cross-tab sync**: uses WebSocket broadcasts to update all connected clients.
+* **Cross-domain support**: great for multi-brand or multi-site applications.
+* **Per-item TTLs** can be optionally added in future.
+* **E2EE** means even the server can’t read your data.
+
+---
+
+## 📌 Comparing with `localStorage`
+
+| Feature                  | `localStorage` | NonLocalStorage |
+| ------------------------ | -------------- | --------------- |
+| Cross-tab/browser/device | 🚫             | ✅               |
+| Cross-domain             | 🚫             | ✅               |
+| Server-side access       | 🚫             | ✅               |
+| Real-time sync           | 🚫             | ✅               |
+| E2E encryption           | 🚫             | ✅               |
+| Data TTL                 | 🚫             | ✅               |
+
+
+---
+
+## 🧰 Support
+
+Have questions, ideas or feedback? [Open an issue](https://github.com/your-org/non-local-storage) or email us at [support@yourdomain.com](mailto:support@yourdomain.com)
+
+---
+
+Made with ❤️ for developers who need real-time storage, without the backend hassle.
