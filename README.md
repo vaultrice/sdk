@@ -9,7 +9,7 @@ A secure, real-time, cloud-based storage SDK with a familiar `localStorage`-like
 ## 🔧 Installation
 
 ```bash
-npm install non-local-storage
+npm install vaultrice
 ````
 
 ---
@@ -17,7 +17,7 @@ npm install non-local-storage
 ## 🚀 Quick Start
 
 ```ts
-import { NonLocalStorage } from 'non-local-storage'
+import { NonLocalStorage } from 'vaultrice'
 
 const nls = new NonLocalStorage({
   apiKey: 'your-api-key',
@@ -133,7 +133,7 @@ await nls.rotateEncryption()     // rotate key/salt
 Create a two-way reactive object:
 
 ```ts
-import { createSyncObject } from 'non-local-storage'
+import { createSyncObject } from 'vaultrice'
 
 const obj1 = await createSyncObject({ apiKey, apiSecret, projectId }, 'my-id')
 obj1.theme = 'dark'
@@ -180,7 +180,7 @@ const userPrefs = await createSyncObject<MySettings>(credentials, 'prefs-id')
 
 ## 🧰 Support
 
-Have questions, ideas or feedback? [Open an issue](https://github.com/your-org/non-local-storage) or email us at [support@yourdomain.com](mailto:support@yourdomain.com)
+Have questions, ideas or feedback? [Open an issue](https://github.com/vaultrice/sdk) or email us at [support@vaultrice.com](mailto:support@vaultrice.com)
 
 ---
 

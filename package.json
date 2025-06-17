@@ -1,6 +1,6 @@
 {
-  "name": "non-local-storage",
-  "globalName": "NonLocalStorage",
+  "name": "vaultrice",
+  "globalName": "Vaultrice",
   "version": "1.0.0",
   "description": "",
   "type": "module",
