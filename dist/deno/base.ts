@@ -16,7 +16,7 @@ function getId () {
 const DEFAULT_DURABLE_CACHE_CLASS = '_undefined_'
 
 export default class Base {
-  protected static basePath: string = 'http://localhost:5173'
+  protected static basePath: string = 'https://api.vaultrice.app'
   protected getEncryptionHandler?: (encryptionSettings: EncryptionSettings) => Promise<EncryptionHandler>
   protected readonly autoUpdateOldEncryptedValues?: boolean
   protected readonly keyDerivationOptions?: KeyDerivationOptions
