@@ -166,14 +166,15 @@ const userPrefs = await createSyncObject<MySettings>(credentials, 'prefs-id')
 
 ## 📌 Comparing with `localStorage`
 
-| Feature                  | `localStorage` | NonLocalStorage |
-| ------------------------ | -------------- | --------------- |
-| Cross-tab/browser/device | 🚫             | ✅               |
-| Cross-domain             | 🚫             | ✅               |
-| Server-side access       | 🚫             | ✅               |
-| Real-time sync           | 🚫             | ✅               |
-| E2E encryption           | 🚫             | ✅               |
-| Data TTL                 | 🚫             | ✅               |
+| Feature                   | `localStorage` | `NonLocalStorage` |
+| ------------------------- | -------------- | --------------- |
+| Cross-tab/browser/device  | 🚫             | ✅               |
+| Cross-domain              | 🚫             | ✅               |
+| Server-side access        | 🚫             | ✅               |
+| Real-time sync            | 🚫             | ✅               |
+| E2E encryption            | 🚫             | ✅               |
+| Data TTL                  | 🚫             | ✅               |
+| SyncObject like interface | 🚫             | ✅               |
 
 
 ---

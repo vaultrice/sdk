@@ -25,6 +25,8 @@ export default async function createSyncObject<T extends object> (
 
   const store: Partial<T> = {}
 
+  if ((nls as any).getEncryptionHandler) await nls.getEncryptionSettings()
+
   nls.on('setItem', (item) => {
     (store as any)[item.prop] = {
       ...item
