@@ -1,7 +1,8 @@
 import Base from './Base'
-import { ItemType, JSONObj, InstanceOptions } from './types'
+import { ItemType, JSONObj, InstanceOptions, JoinedConnections, JoinedConnection, LeavedConnection } from './types'
 
 export default class WebSocketFunctions extends Base {
+  private hasJoined: boolean
   constructor (
     credentials: {
       apiKey: string,
@@ -32,6 +33,7 @@ export default class WebSocketFunctions extends Base {
       super(credentials, idOrOptions as InstanceOptions | undefined)
     }
     ;(this as any).errorHandlers = []
+    this.hasJoined = false
   }
 
   async send (msg: JSONObj, options: { transport?: 'ws' | 'http' } = { transport: 'ws' }): Promise<undefined> {
@@ -64,6 +66,8 @@ export default class WebSocketFunctions extends Base {
 
   on (event: 'connect', handler: () => void): any
   on (event: 'disconnect', handler: () => void): any
+  on (event: 'presence:join', handler: (joinedConnection: JoinedConnection) => void): any
+  on (event: 'presence:leave', handler: (leavedConnection: LeavedConnection) => void): any
   on (event: 'message', handler: (data: JSONObj) => void): any
   on (event: 'error', handler: (error: Error) => void): any
   on (event: 'setItem', handler: (item: ItemType & { prop: string }) => void): any
@@ -72,7 +76,7 @@ export default class WebSocketFunctions extends Base {
   on (event: 'removeItem', name: string, handler: (item: { prop: string }) => void): any
   on (
     event: string,
-    handlerOrName: ((item: ItemType & { prop: string }) => void) | ((name: string) => void) | (() => void) | ((error: Error) => void) | ((data: JSONObj) => void) | string,
+    handlerOrName: ((item: ItemType & { prop: string }) => void) | ((name: string) => void) | (() => void) | ((error: Error) => void) | ((data: JSONObj) => void) | ((joinedConnection: JoinedConnection) => void) | ((leavedConnection: LeavedConnection) => void) | string,
     handler?: ((item: ItemType & { prop: string }) => void) | (() => void) | ((name: string) => void) | ((error: Error) => void) | ((data: JSONObj) => void)
   ) {
     const ws = this.getWebSocket()
@@ -132,6 +136,39 @@ export default class WebSocketFunctions extends Base {
       })
     }
 
+    if (event === 'presence:join') {
+      if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
+      const hndl = handlerOrName as (joinedConnection: JoinedConnection) => void
+      ws.addEventListener('message', (evt) => {
+        const msg = JSON.parse(evt.data)
+        if (msg.event === 'presence:join') {
+          maybeDecryptAndHandle(msg, (p: any) => {
+            hndl({
+              connectionId: (msg as any)?.connectionId,
+              joinedAt: (msg as any)?.joinedAt,
+              data: p
+            })
+          }, true)
+        }
+      })
+    }
+
+    if (event === 'presence:leave') {
+      if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
+      const hndl = handlerOrName as (leavedConnection: LeavedConnection) => void
+      ws.addEventListener('message', (evt) => {
+        const msg = JSON.parse(evt.data)
+        if (msg.event === 'presence:leave') {
+          maybeDecryptAndHandle(msg, (p: any) => {
+            hndl({
+              connectionId: (msg as any)?.connectionId,
+              data: p
+            })
+          }, true)
+        }
+      })
+    }
+
     if (event === 'setItem') {
       if (typeof handler === 'undefined') {
         if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
@@ -173,6 +210,9 @@ export default class WebSocketFunctions extends Base {
 
   disconnect () {
     if (!(this as any).ws) return
+    if (this.hasJoined) {
+      this.leave()
+    }
     (this as any).ws.close()
     delete (this as any).ws
   }
@@ -209,7 +249,64 @@ export default class WebSocketFunctions extends Base {
     // )
     ws.addEventListener('close', () => {
       delete (this as any).ws
+      if (this.hasJoined) this.hasJoined = false
     })
     return ws
+  }
+
+  async join (data: JSONObj): Promise<undefined> {
+    this.hasJoined = true
+    if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
+
+    const dataToSend = this.encryptionHandler ? await this.encryptionHandler.encrypt(JSON.stringify(data)) : data
+
+    const ws = this.getWebSocket()
+    const msg = { event: 'presence:join', payload: dataToSend }
+    if ((this as any)?.encryptionSettings?.keyVersion > -1) (msg as any).keyVersion = (this as any)?.encryptionSettings?.keyVersion
+    // coming on ws:// connection via protocols
+    // if (this.idSignature && this.idSignatureKeyVersion !== undefined) {
+    //   ;(wrappedMsg as any).idSignature = this.idSignature
+    //   ;(wrappedMsg as any).idSignatureKeyVersion = this.idSignatureKeyVersion
+    // }
+    ws.send(JSON.stringify(msg))
+  }
+
+  async leave (): Promise<undefined> {
+    if (!this.hasJoined) return
+    this.hasJoined = false
+
+    const ws = this.getWebSocket()
+    const msg = { event: 'presence:leave' }
+    if ((this as any)?.encryptionSettings?.keyVersion > -1) (msg as any).keyVersion = (this as any)?.encryptionSettings?.keyVersion
+    // coming on ws:// connection via protocols
+    // if (this.idSignature && this.idSignatureKeyVersion !== undefined) {
+    //   ;(wrappedMsg as any).idSignature = this.idSignature
+    //   ;(wrappedMsg as any).idSignatureKeyVersion = this.idSignatureKeyVersion
+    // }
+    ws.send(JSON.stringify(msg))
+  }
+
+  async getJoinedConnections (): Promise<JoinedConnections> {
+    if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
+    let response
+    try {
+      response = await this.request('GET', `/presence-list/${this.class}/${this.id}`)
+    } catch (e) {
+      if (!e || (e as any)?.cause?.name !== 'ConflictError') throw e
+      this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
+      await this.getEncryptionSettings()
+      response = await this.request('GET', `/presence-list/${this.class}/${this.id}`)
+    }
+
+    const joined = response as any[]
+    return Promise.all(joined?.map(async (c) => {
+      const encryptionHandler = await this.getEncryptionHandlerForKeyVersion(c.keyVersion as number)
+      const data = encryptionHandler ? JSON.parse(await encryptionHandler.decrypt(c.data as string)) : c.data
+      return {
+        connectionId: c.connectionId,
+        joinedAt: c.joinedAt,
+        data
+      }
+    }) || [])
   }
 }

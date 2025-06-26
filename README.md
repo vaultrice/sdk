@@ -108,6 +108,36 @@ nls.on('setItem', 'myKey', e => console.log('myKey changed:', e.value))
 
 ---
 
+## 👥 Presence API
+
+Track who's online and get notified when users join or leave:
+
+```ts
+// Join presence for this object
+await nls.join({ userId: 'my-user-id' })
+
+// Leave presence (done automatically also on disconnect)
+await nls.leave()
+
+// Get all currently connected clients
+const connections = await nls.getJoinedConnections()
+console.log(connections) // Array of connection info
+// [{ connectionId: 'some-id', joinedAt: 1750961579094, data: { userId: 'my-user-id' } }]
+
+// Listen for presence events
+nls.on('presence:join', (joinedConnection) => {
+  console.log('User joined:', joinedConnection)
+  // { connectionId: 'some-id', joinedAt: 1750961579094, payload: { userId: 'my-user-id' } }
+})
+
+nls.on('presence:leave', (leavedConnection) => {
+  console.log('User left:', leavedConnection)
+  // { connectionId: 'some-id', payload: { userId: 'my-user-id' } }
+})
+```
+
+---
+
 ## 🔐 End-to-End Encryption (E2EE)
 
 Enable by passing a `passphrase` when constructing:
@@ -175,6 +205,7 @@ const userPrefs = await createSyncObject<MySettings>(credentials, 'prefs-id')
 | E2E encryption            | 🚫             | ✅               |
 | Data TTL                  | 🚫             | ✅               |
 | SyncObject like interface | 🚫             | ✅               |
+| Presence awareness        | 🚫             | ✅               |
 
 
 ---

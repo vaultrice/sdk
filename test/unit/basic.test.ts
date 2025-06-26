@@ -117,11 +117,11 @@ describe('NonLocalStorage', () => {
       expect(nls).to.have.property('on')
 
       nls.on('error', (e) => {
-        console.log(1, e)
+        console.log(e)
       })
-      nls.on('disconnect', () => {
-        console.log('disconnected')
-      })
+      // nls.on('disconnect', () => {
+      //   console.log('disconnected')
+      // })
       const receivedMesssagesOnClient: any[] = []
       nls.on('message', (m) => {
         receivedMesssagesOnClient.push(m)
@@ -165,9 +165,9 @@ describe('NonLocalStorage', () => {
       nls.on('error', (e) => {
         console.log(2, e)
       })
-      nls.on('disconnect', () => {
-        console.log('disconnected')
-      })
+      // nls.on('disconnect', () => {
+      //   console.log('disconnected')
+      // })
       const receivedMesssagesOnClient: any[] = []
       nls.on('message', (m) => {
         receivedMesssagesOnClient.push(m)

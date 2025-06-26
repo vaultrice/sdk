@@ -84,3 +84,14 @@ export type EncryptionSettingsInfos = {
   encryptionSettings: EncryptionSettings,
   previousEncryptionSettings?: EncryptionSettings[]
 }
+
+export type LeavedConnection = {
+  connectionId: string,
+  data?: JSONObj
+}
+
+export type JoinedConnection = LeavedConnection & {
+  joinedAt: number
+}
+
+export type JoinedConnections = JoinedConnection[]

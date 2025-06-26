@@ -2,6 +2,7 @@ import { vi } from 'vitest'
 import { NonLocalStorage } from '../../../src/index'
 import { JSONObj } from '../../../src/types'
 import { setImmediate } from 'node:timers/promises'
+import conns from './connectionsMock'
 
 const metadata = {}
 const objects = {}
@@ -227,6 +228,13 @@ export default () => {
       if (pathParts[1] === 'message' && pathParts.length === 4 && method === 'POST' && body) {
         send({ event: 'message', payload: body, keyVersion })
         return
+      }
+
+      // getJoinedConnections()
+      if (pathParts[1] === 'presence-list' && pathParts.length === 4 && method === 'GET') {
+        conns[`${this.credentials.projectId}:${this.class}`] ||= {}
+        conns[`${this.credentials.projectId}:${this.class}`][objectId] ||= {}
+        return conns[`${this.credentials.projectId}:${this.class}`][objectId].filter((c) => (c as any)?.joinedAt)
       }
 
       console.error('No mock implementation for this:', {

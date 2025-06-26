@@ -4,7 +4,7 @@ import uuidv4 from '../../src/uuidv4'
 import mockRequest from './fixtures/requestMock'
 import mockWs from './fixtures/getWebsocketMock'
 
-describe('NonLocalStorage', () => {
+describe('NonLocalStorage (e2ee custom)', () => {
   let restoreRequest, restoreWs
   beforeAll(() => {
     restoreRequest = mockRequest()
