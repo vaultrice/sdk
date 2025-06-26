@@ -263,11 +263,6 @@ export default class WebSocketFunctions extends Base {
     const ws = this.getWebSocket()
     const msg = { event: 'presence:join', payload: dataToSend }
     if ((this as any)?.encryptionSettings?.keyVersion > -1) (msg as any).keyVersion = (this as any)?.encryptionSettings?.keyVersion
-    // coming on ws:// connection via protocols
-    // if (this.idSignature && this.idSignatureKeyVersion !== undefined) {
-    //   ;(wrappedMsg as any).idSignature = this.idSignature
-    //   ;(wrappedMsg as any).idSignatureKeyVersion = this.idSignatureKeyVersion
-    // }
     ws.send(JSON.stringify(msg))
   }
 
@@ -278,11 +273,6 @@ export default class WebSocketFunctions extends Base {
     const ws = this.getWebSocket()
     const msg = { event: 'presence:leave' }
     if ((this as any)?.encryptionSettings?.keyVersion > -1) (msg as any).keyVersion = (this as any)?.encryptionSettings?.keyVersion
-    // coming on ws:// connection via protocols
-    // if (this.idSignature && this.idSignatureKeyVersion !== undefined) {
-    //   ;(wrappedMsg as any).idSignature = this.idSignature
-    //   ;(wrappedMsg as any).idSignatureKeyVersion = this.idSignatureKeyVersion
-    // }
     ws.send(JSON.stringify(msg))
   }
 
