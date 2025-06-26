@@ -71,7 +71,7 @@ describe(`NonLocalStorage WS (${process.env.MODE})`, () => {
       const nls = new NonLocalStorage({ apiKey, apiSecret, projectId }, { id, class: className })
 
       nls.on('error', (e) => {
-        console.log(2, e)
+        console.log(e)
       })
       nls.on('disconnect', () => {
         console.log('disconnected')

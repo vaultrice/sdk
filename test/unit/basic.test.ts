@@ -163,7 +163,7 @@ describe('NonLocalStorage', () => {
       const nls = new NonLocalStorage({ apiKey: uuidv4(), apiSecret: 'dummy', projectId: uuidv4() })
 
       nls.on('error', (e) => {
-        console.log(2, e)
+        console.log(e)
       })
       // nls.on('disconnect', () => {
       //   console.log('disconnected')
