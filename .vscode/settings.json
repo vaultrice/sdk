@@ -1,7 +1,7 @@
 {
   // run ESLint “fix” on save
   "editor.codeActionsOnSave": {
-    "source.fixAll.eslint": true    // <-- auto-fix via ESLint
+    "source.fixAll.eslint": "explicit"
   },
 
   // ensure ESLint runs when you save .js/.jsx/.ts/.tsx files
