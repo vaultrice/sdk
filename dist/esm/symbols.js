@@ -1,1 +1,1 @@
-const o=Symbol("credentials"),e=Symbol("encryptionSettings"),n=Symbol("previousEncryptionSettings"),r=Symbol("errorHandlers"),t=Symbol("ws");export{o as CREDENTIALS,e as ENCRYPTION_SETTINGS,r as ERROR_HANDLERS,n as PREVIOUS_ENCRYPTION_SETTINGS,t as WEBSOCKET};
+const e=Symbol("vaultrice/credentials"),r=Symbol("vaultrice/encryptionSettings"),t=Symbol("vaultrice/previousEncryptionSettings"),l=Symbol("vaultrice/errorHandlers"),i=Symbol("vaultrice/ws");export{e as CREDENTIALS,r as ENCRYPTION_SETTINGS,l as ERROR_HANDLERS,t as PREVIOUS_ENCRYPTION_SETTINGS,i as WEBSOCKET};
