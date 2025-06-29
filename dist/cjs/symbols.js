@@ -1,0 +1,1 @@
+"use strict";const o=Symbol("credentials"),t=Symbol("encryptionSettings"),S=Symbol("previousEncryptionSettings"),e=Symbol("errorHandlers"),r=Symbol("ws");exports.CREDENTIALS=o,exports.ENCRYPTION_SETTINGS=t,exports.ERROR_HANDLERS=e,exports.PREVIOUS_ENCRYPTION_SETTINGS=S,exports.WEBSOCKET=r;

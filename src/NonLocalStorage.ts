@@ -8,6 +8,7 @@ import {
   JSONObj,
   InstanceOptions
 } from './types'
+import { ENCRYPTION_SETTINGS } from './symbols'
 
 export default class NonLocalStorage extends WebSocketFunctions {
   private ttl: number | undefined
@@ -123,7 +124,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
     const encryptionHandler = await this.getEncryptionHandlerForKeyVersion(item.keyVersion as number)
     const value = encryptionHandler ? JSON.parse(await encryptionHandler.decrypt(v as string)) : v
 
-    const hasOldEncryption = (item?.keyVersion as number) > -1 && item.keyVersion !== (this as any).encryptionSettings?.keyVersion
+    const hasOldEncryption = (item?.keyVersion as number) > -1 && item.keyVersion !== this[ENCRYPTION_SETTINGS]?.keyVersion
     if (hasOldEncryption) {
       if (this.autoUpdateOldEncryptedValues) {
         this.logger.log('info', `Item "${name}" has an old encryption and will be automatically updated now by setting it again.`)
@@ -168,7 +169,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
       const encryptionHandler = await this.getEncryptionHandlerForKeyVersion(item.keyVersion as number)
       const value = encryptionHandler ? JSON.parse(await encryptionHandler.decrypt(v as string)) : v
 
-      const hasOldEncryption = (item?.keyVersion as number) > -1 && item.keyVersion !== (this as any).encryptionSettings?.keyVersion
+      const hasOldEncryption = (item?.keyVersion as number) > -1 && item.keyVersion !== this[ENCRYPTION_SETTINGS]?.keyVersion
       if (hasOldEncryption) oldEncryptedItems[name] = item
 
       result[name] = {

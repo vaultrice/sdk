@@ -3,6 +3,7 @@ import { NonLocalStorage } from '../../../src/index'
 import { WebSocket, Server } from 'mock-socket'
 import conns from './connectionsMock'
 import uuid from '../../../src/uuidv4'
+import { CREDENTIALS, WEBSOCKET } from '../../../src/symbols'
 
 const ws = {}
 let server
@@ -66,16 +67,16 @@ export default () => {
 
   const mock = vi.spyOn(NonLocalStorage.prototype, 'getWebSocket').mockImplementation(
     function (): WebSocket {
-      ws[`${this.credentials.projectId}:${this.class}`] ||= {}
-      if (ws[`${this.credentials.projectId}:${this.class}`][this.id]) return ws[`${this.credentials.projectId}:${this.class}`][this.id]
-      ws[`${this.credentials.projectId}:${this.class}`][this.id] ||= new WebSocket('ws://localhost:1234')
-      ;(this as any).ws = ws[`${this.credentials.projectId}:${this.class}`][this.id]
-      conns[`${this.credentials.projectId}:${this.class}`] ||= {}
-      conns[`${this.credentials.projectId}:${this.class}`][this.id] ||= []
+      ws[`${this[CREDENTIALS].projectId}:${this.class}`] ||= {}
+      if (ws[`${this[CREDENTIALS].projectId}:${this.class}`][this.id]) return ws[`${this[CREDENTIALS].projectId}:${this.class}`][this.id]
+      ws[`${this[CREDENTIALS].projectId}:${this.class}`][this.id] ||= new WebSocket('ws://localhost:1234')
+      this[WEBSOCKET] = ws[`${this[CREDENTIALS].projectId}:${this.class}`][this.id]
+      conns[`${this[CREDENTIALS].projectId}:${this.class}`] ||= {}
+      conns[`${this[CREDENTIALS].projectId}:${this.class}`][this.id] ||= []
       const connectionId = uuid()
-      conns[`${this.credentials.projectId}:${this.class}`][this.id].push({ connectionId })
-      ws[`${this.credentials.projectId}:${this.class}`][this.id].connectionId = connectionId
-      return ws[`${this.credentials.projectId}:${this.class}`][this.id]
+      conns[`${this[CREDENTIALS].projectId}:${this.class}`][this.id].push({ connectionId })
+      ws[`${this[CREDENTIALS].projectId}:${this.class}`][this.id].connectionId = connectionId
+      return ws[`${this[CREDENTIALS].projectId}:${this.class}`][this.id]
     }
   )
 

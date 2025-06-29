@@ -1,8 +1,11 @@
-import Base from './Base'
-import { ItemType, JSONObj, InstanceOptions, JoinedConnections, JoinedConnection, LeavedConnection } from './types'
+import Base from './Base.ts'
+import { CREDENTIALS, ENCRYPTION_SETTINGS, ERROR_HANDLERS, WEBSOCKET } from './symbols.ts'
+import { ItemType, JSONObj, InstanceOptions, JoinedConnections, JoinedConnection, LeavedConnection } from './types.ts'
 
 export default class WebSocketFunctions extends Base {
   private hasJoined: boolean
+  private [ERROR_HANDLERS]: ((error: Error) => void)[]
+  private [WEBSOCKET]?: WebSocket
   constructor (
     credentials: {
       apiKey: string,
@@ -32,8 +35,8 @@ export default class WebSocketFunctions extends Base {
     } else {
       super(credentials, idOrOptions as InstanceOptions | undefined)
     }
-    ;(this as any).errorHandlers = []
     this.hasJoined = false
+    this[ERROR_HANDLERS] = []
   }
 
   async send (msg: JSONObj, options: { transport?: 'ws' | 'http' } = { transport: 'ws' }): Promise<undefined> {
@@ -55,7 +58,7 @@ export default class WebSocketFunctions extends Base {
 
     const ws = this.getWebSocket()
     const wrappedMsg = { event: 'message', payload: msgToSend }
-    if ((this as any)?.encryptionSettings?.keyVersion > -1) (wrappedMsg as any).keyVersion = (this as any)?.encryptionSettings?.keyVersion
+    if (this[ENCRYPTION_SETTINGS] && this[ENCRYPTION_SETTINGS]?.keyVersion > -1) (wrappedMsg as any).keyVersion = this[ENCRYPTION_SETTINGS]?.keyVersion
     // coming on ws:// connection via protocols
     // if (this.idSignature && this.idSignatureKeyVersion !== undefined) {
     //   ;(wrappedMsg as any).idSignature = this.idSignature
@@ -84,7 +87,7 @@ export default class WebSocketFunctions extends Base {
     if (event === 'error') {
       if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
       const hndl = handlerOrName as (e: Error) => void
-      (this as any).errorHandlers.push(hndl)
+      this[ERROR_HANDLERS].push(hndl)
       ws.addEventListener('error', (evt: any) => hndl(new Error(evt?.message)))
     }
 
@@ -104,8 +107,8 @@ export default class WebSocketFunctions extends Base {
       const keyVersion = completePayload ? msg.keyVersion : msg.payload.keyVersion
       if (keyVersion === undefined) return hndl(msg.payload)
       if (keyVersion > -1) {
-        if (!this.getEncryptionHandler) return (this as any).errorHandlers.map((h: (e: Error) => {}) => h(new Error('Encrypted data, but no passphrase or getEncryptionHandler configured!')))
-        if (!this.encryptionHandler) return (this as any).errorHandlers.map((h: (e: Error) => {}) => h(new Error('Encrypted data, but getEncryptionSettings() not called!')))
+        if (!this.getEncryptionHandler) return this[ERROR_HANDLERS].forEach((h: (e: Error) => void) => h(new Error('Encrypted data, but no passphrase or getEncryptionHandler configured!')))
+        if (!this.encryptionHandler) return this[ERROR_HANDLERS].forEach((h: (e: Error) => void) => h(new Error('Encrypted data, but getEncryptionSettings() not called!')))
 
         let toDec = msg.payload.value
         if (completePayload) toDec = msg.payload
@@ -120,7 +123,7 @@ export default class WebSocketFunctions extends Base {
             hndl(msg.payload)
           })
           .catch((err) => {
-            (this as any).errorHandlers.map((h: (e: Error) => {}) => h(err))
+            this[ERROR_HANDLERS].forEach((h: (e: Error) => void) => h(err))
           })
       }
     }
@@ -209,46 +212,46 @@ export default class WebSocketFunctions extends Base {
   }
 
   disconnect () {
-    if (!(this as any).ws) return
+    if (!this[WEBSOCKET]) return
     if (this.hasJoined) {
       this.leave()
     }
-    (this as any).ws.close()
-    delete (this as any).ws
+    this[WEBSOCKET].close()
+    delete this[WEBSOCKET]
   }
 
   getWebSocket (): WebSocket {
-    if ((this as any).ws) return (this as any).ws
+    if (this[WEBSOCKET]) return this[WEBSOCKET]
 
     const wsBasePath = WebSocketFunctions.basePath.replace('http', 'ws')
 
     const qs: any = {
       auth: this.accessToken
         ? `Bearer ${this.accessToken}`
-        : `Basic ${btoa(`${(this as any).credentials.apiKey}:${(this as any).credentials.apiSecret}`)}`
+        : `Basic ${btoa(`${this[CREDENTIALS].apiKey}:${this[CREDENTIALS].apiSecret}`)}`
     }
     if (this.idSignature && this.idSignatureKeyVersion !== undefined) {
       qs.idSignature = this.idSignature
       qs.idSignatureKeyVersion = this.idSignatureKeyVersion
     }
     const queryParams = new URLSearchParams(qs as any)
-    const ws = (this as any).ws = new WebSocket(`${wsBasePath}/project/${(this as any).credentials.projectId}/ws/${this.class}/${this.id}?${queryParams}`)
+    const ws = this[WEBSOCKET] = new WebSocket(`${wsBasePath}/project/${this[CREDENTIALS].projectId}/ws/${this.class}/${this.id}?${queryParams}`)
 
     // const protocols = [
     //   this.accessToken
     //     ? encodeURIComponent(`Bearer ${this.accessToken}`)
-    //     : encodeURIComponent(`Basic ${btoa(`${(this as any).credentials.apiKey}:${(this as any).credentials.apiSecret}`)}`)
+    //     : encodeURIComponent(`Basic ${btoa(`${this[CREDENTIALS].apiKey}:${this[CREDENTIALS].apiSecret}`)}`)
     // ]
     // if (this.idSignature && this.idSignatureKeyVersion !== undefined) {
     //   protocols.push(encodeURIComponent(`X-Id-Sig ${this.idSignature}`))
     //   protocols.push(encodeURIComponent(`X-Id-Sig-KV ${this.idSignatureKeyVersion.toString()}`))
     // }
-    // const ws = (this as any).ws = new WebSocket(
-    //   `${wsBasePath}/project/${(this as any).credentials.projectId}/ws/${this.class}/${this.id}`,
+    // const ws = this[WEBSOCKET] = new WebSocket(
+    //   `${wsBasePath}/project/${this[CREDENTIALS].projectId}/ws/${this.class}/${this.id}`,
     //   protocols
     // )
     ws.addEventListener('close', () => {
-      delete (this as any).ws
+      delete this[WEBSOCKET]
       if (this.hasJoined) this.hasJoined = false
     })
     return ws
@@ -262,7 +265,7 @@ export default class WebSocketFunctions extends Base {
 
     const ws = this.getWebSocket()
     const msg = { event: 'presence:join', payload: dataToSend }
-    if ((this as any)?.encryptionSettings?.keyVersion > -1) (msg as any).keyVersion = (this as any)?.encryptionSettings?.keyVersion
+    if (this[ENCRYPTION_SETTINGS] && this[ENCRYPTION_SETTINGS]?.keyVersion > -1) (msg as any).keyVersion = this[ENCRYPTION_SETTINGS]?.keyVersion
     ws.send(JSON.stringify(msg))
   }
 
@@ -272,7 +275,7 @@ export default class WebSocketFunctions extends Base {
 
     const ws = this.getWebSocket()
     const msg = { event: 'presence:leave' }
-    if ((this as any)?.encryptionSettings?.keyVersion > -1) (msg as any).keyVersion = (this as any)?.encryptionSettings?.keyVersion
+    if (this[ENCRYPTION_SETTINGS] && this[ENCRYPTION_SETTINGS]?.keyVersion > -1) (msg as any).keyVersion = this[ENCRYPTION_SETTINGS]?.keyVersion
     ws.send(JSON.stringify(msg))
   }
 

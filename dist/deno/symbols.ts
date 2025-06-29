@@ -1,0 +1,5 @@
+export const CREDENTIALS = Symbol('credentials')
+export const ENCRYPTION_SETTINGS = Symbol('encryptionSettings')
+export const PREVIOUS_ENCRYPTION_SETTINGS = Symbol('previousEncryptionSettings')
+export const ERROR_HANDLERS = Symbol('errorHandlers')
+export const WEBSOCKET = Symbol('ws')

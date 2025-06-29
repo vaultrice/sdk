@@ -1,9 +1,10 @@
-import { getLocalId, setLocalId } from './local.ts'
-import { deriveSymmetricKey, encrypt, decrypt } from './encryption.ts'
-import uuidv4 from './uuidv4.ts'
-import { JSONObj, InstanceOptions, KeyDerivationOptions, EncryptionSettingsInfos, EncryptionSettings, EncryptionHandler } from './types.ts'
-import getLogger, { Logger } from './logger.ts'
-import decodeJwt from './decodeJwt.ts'
+import { getLocalId, setLocalId } from './local'
+import { deriveSymmetricKey, encrypt, decrypt } from './encryption'
+import uuidv4 from './uuidv4'
+import { JSONObj, InstanceOptions, KeyDerivationOptions, EncryptionSettingsInfos, EncryptionSettings, EncryptionHandler } from './types'
+import getLogger, { Logger } from './logger'
+import decodeJwt from './decodeJwt'
+import { CREDENTIALS, ENCRYPTION_SETTINGS, PREVIOUS_ENCRYPTION_SETTINGS } from './symbols'
 
 function getId () {
   // if no id provided, try to check if there is one in the real local storage...
@@ -28,6 +29,9 @@ export default class Base {
   protected accessToken?: string
   protected encryptionHandler?: EncryptionHandler
   private isGettingAccessToken?: Promise<void>
+  private [CREDENTIALS]: { apiKey: string, apiSecret: string, projectId: string }
+  private [ENCRYPTION_SETTINGS]?: EncryptionSettings
+  private [PREVIOUS_ENCRYPTION_SETTINGS]?: EncryptionSettings[]
 
   constructor (
     credentials: {
@@ -75,7 +79,7 @@ export default class Base {
     // try to save that id locally
     setLocalId(this.id as string)
 
-    ;(this as any).credentials = credentials
+    this[CREDENTIALS] = credentials
 
     this.class = options.class || DEFAULT_DURABLE_CACHE_CLASS
 
@@ -120,22 +124,22 @@ export default class Base {
 
   protected async getEncryptionHandlerForKeyVersion (keyVersion?: number): Promise<EncryptionHandler | undefined> {
     if ((keyVersion as number) > -1) {
-      if (keyVersion !== (this as any).encryptionSettings.keyVersion) {
-        if (!(this as any).previousEncryptionSettings || (this as any).previousEncryptionSettings.length === 0) {
+      if (keyVersion !== this[ENCRYPTION_SETTINGS]?.keyVersion) {
+        if (!this[PREVIOUS_ENCRYPTION_SETTINGS] || this[PREVIOUS_ENCRYPTION_SETTINGS].length === 0) {
           await this.getEncryptionSettings()
         }
       }
-      if (keyVersion !== (this as any).encryptionSettings.keyVersion) {
-        if (!(this as any).previousEncryptionSettings || (this as any).previousEncryptionSettings.length === 0) {
-          throw new Error(`Wrong keyVersion! Found ${keyVersion} but you're using ${(this as any).encryptionSettings.keyVersion}`)
+      if (keyVersion !== this[ENCRYPTION_SETTINGS]?.keyVersion) {
+        if (!this[PREVIOUS_ENCRYPTION_SETTINGS] || this[PREVIOUS_ENCRYPTION_SETTINGS].length === 0) {
+          throw new Error(`Wrong keyVersion! Found ${keyVersion} but you're using ${this[ENCRYPTION_SETTINGS]?.keyVersion}`)
         }
-        let foundSettings = (this as any).previousEncryptionSettings.find((s: any) => s.keyVersion === keyVersion)
+        let foundSettings = this[PREVIOUS_ENCRYPTION_SETTINGS].find((s: any) => s.keyVersion === keyVersion)
         if (!foundSettings) {
           await this.getEncryptionSettings()
         }
-        foundSettings = ((this as any).previousEncryptionSettings || []).find((s: any) => s.keyVersion === keyVersion)
+        foundSettings = (this[PREVIOUS_ENCRYPTION_SETTINGS] || []).find((s: any) => s.keyVersion === keyVersion)
         if (!foundSettings) {
-          throw new Error(`Wrong keyVersion! Found ${keyVersion} but you're using ${(this as any).encryptionSettings.keyVersion}`)
+          throw new Error(`Wrong keyVersion! Found ${keyVersion} but you're using ${this[ENCRYPTION_SETTINGS]?.keyVersion}`)
         }
         if (!this.getEncryptionHandler) return
         return this.getEncryptionHandler(foundSettings)
@@ -146,8 +150,8 @@ export default class Base {
 
   private async handleEncryptionSettings (metadata: EncryptionSettingsInfos) {
     if (!this.getEncryptionHandler) throw new Error('No getEncryptionHandler defined!')
-    ;(this as any).encryptionSettings = metadata.encryptionSettings
-    ;(this as any).previousEncryptionSettings = metadata.previousEncryptionSettings
+    this[ENCRYPTION_SETTINGS] = metadata.encryptionSettings
+    this[PREVIOUS_ENCRYPTION_SETTINGS] = metadata.previousEncryptionSettings
     this.encryptionHandler = await this.getEncryptionHandler(metadata.encryptionSettings)
   }
 
@@ -170,7 +174,7 @@ export default class Base {
    * Only mandatory if using e2e encryption
    */
   async getEncryptionSettings (saltLength: number = 16): Promise<EncryptionSettingsInfos> {
-    if (!(this as any).passphrase && !this.getEncryptionHandler) throw new Error('No passphrase and no getEncryptionHandler passed! This function is only allowed with e2e encryption!')
+    if (!this.getEncryptionHandler) throw new Error('No passphrase and no getEncryptionHandler passed! This function is only allowed with e2e encryption!')
 
     const response = await this.request('POST', `/cache-encryption/${this.class}/${this.id}`, { saltLength })
     const metadata = response as JSONObj
@@ -184,7 +188,7 @@ export default class Base {
    * Only useful if using e2e encryption
    */
   async rotateEncryption (saltLength: number = 16): Promise<EncryptionSettingsInfos> {
-    if (!(this as any).passphrase && !this.getEncryptionHandler) throw new Error('No passphrase and no getEncryptionHandler passed! This function is only allowed with e2e encryption!')
+    if (!this.getEncryptionHandler) throw new Error('No passphrase and no getEncryptionHandler passed! This function is only allowed with e2e encryption!')
 
     const response = await this.request('POST', `/cache-encryption-rotate/${this.class}/${this.id}`, { saltLength })
     const metadata = response as JSONObj
@@ -201,10 +205,10 @@ export default class Base {
     } = {
       Authorization: this.accessToken
         ? `Bearer ${this.accessToken}`
-        : `Basic ${btoa(`${(this as any).credentials.apiKey}:${(this as any).credentials.apiSecret}`)}`
+        : `Basic ${btoa(`${this[CREDENTIALS].apiKey}:${this[CREDENTIALS].apiSecret}`)}`
     }
     const isStringBody = typeof body === 'string'
-    const keyVersion = (this as any)?.encryptionSettings?.keyVersion
+    const keyVersion = this[ENCRYPTION_SETTINGS]?.keyVersion
     if (keyVersion !== undefined && keyVersion > -1) {
       headers['X-Enc-KV'] = keyVersion.toString()
     }
@@ -214,7 +218,7 @@ export default class Base {
     }
     if (body) headers['Content-Type'] = isStringBody ? 'text/plain' : 'application/json'
     const response = await fetch(
-      `${Base.basePath}/project/${(this as any).credentials.projectId}${path}`, {
+      `${Base.basePath}/project/${this[CREDENTIALS].projectId}${path}`, {
         method,
         headers,
         body: !body ? undefined : isStringBody ? body : JSON.stringify(body)
