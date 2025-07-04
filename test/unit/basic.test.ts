@@ -239,9 +239,9 @@ describe('NonLocalStorage', () => {
     })
   })
 
-  describe('e2e usage', () => {
+  describe('e2ee usage', () => {
     it('should work as expected', async () => {
-      const nls = new NonLocalStorage({ apiKey: uuidv4(), apiSecret: '1234', projectId: uuidv4() }, { id: '1122334455', passphrase: 'very secret e2e password' })
+      const nls = new NonLocalStorage({ apiKey: uuidv4(), apiSecret: '1234', projectId: uuidv4() }, { id: '1122334455', passphrase: 'very secret e2ee password' })
       await nls.getEncryptionSettings()
       const set = await nls.setItem('testprop', 'test-value')
       expect(set).to.have.property('keyVersion', 0)
@@ -262,7 +262,7 @@ describe('NonLocalStorage', () => {
     })
   })
 
-  describe('e2e usage with websockets stuff', () => {
+  describe('e2ee usage with websockets stuff', () => {
     it('should work as expected', async () => {
       const receivedMesssagesOnServer: any[] = []
       const server = (NonLocalStorage as any).getWebSocketServer()
@@ -272,7 +272,7 @@ describe('NonLocalStorage', () => {
         })
       })
 
-      const nls = new NonLocalStorage({ apiKey: uuidv4(), apiSecret: 'dummy', projectId: uuidv4() }, { id: '1234567890', passphrase: 'very secret e2e password' })
+      const nls = new NonLocalStorage({ apiKey: uuidv4(), apiSecret: 'dummy', projectId: uuidv4() }, { id: '1234567890', passphrase: 'very secret e2ee password' })
       await nls.getEncryptionSettings()
 
       const receivedMesssagesOnClient: any[] = []
@@ -354,6 +354,13 @@ describe('NonLocalStorage', () => {
       expect(receivedMesssagesOnClient[0]).to.eql({ hiEnc: 'thereEnc' })
 
       nls.disconnect()
+    })
+  })
+
+  describe('e2ee usage with object id signature', () => {
+    it('should work as expected', async () => {
+      const nls = new NonLocalStorage({ apiKey: uuidv4(), apiSecret: '1234', projectId: uuidv4() }, { id: '1122334455667788', idSignature: '1122334455667788-fake-signed' })
+      expect(nls).to.have.property('idSignature')
     })
   })
 })
