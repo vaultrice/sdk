@@ -172,11 +172,12 @@ export default class Base {
 
   /**
    * Only mandatory if using e2e encryption
+   * @param [saltLength=16]
    */
-  async getEncryptionSettings (saltLength: number = 16): Promise<EncryptionSettingsInfos> {
+  async getEncryptionSettings (saltLength?: number): Promise<EncryptionSettingsInfos> {
     if (!this.getEncryptionHandler) throw new Error('No passphrase and no getEncryptionHandler passed! This function is only allowed with e2e encryption!')
 
-    const response = await this.request('POST', `/cache-encryption/${this.class}/${this.id}`, { saltLength })
+    const response = await this.request('POST', `/cache-encryption/${this.class}/${this.id}`, (saltLength && saltLength > 0) ? { saltLength } : {})
     const metadata = response as JSONObj
 
     const encryptionSettingsInfos = this.prepareEncryptionSettings(metadata)
@@ -186,11 +187,12 @@ export default class Base {
 
   /**
    * Only useful if using e2e encryption
+   * @param [saltLength=16]
    */
-  async rotateEncryption (saltLength: number = 16): Promise<EncryptionSettingsInfos> {
+  async rotateEncryption (saltLength?: number): Promise<EncryptionSettingsInfos> {
     if (!this.getEncryptionHandler) throw new Error('No passphrase and no getEncryptionHandler passed! This function is only allowed with e2e encryption!')
 
-    const response = await this.request('POST', `/cache-encryption-rotate/${this.class}/${this.id}`, { saltLength })
+    const response = await this.request('POST', `/cache-encryption-rotate/${this.class}/${this.id}`, (saltLength && saltLength > 0) ? { saltLength } : {})
     const metadata = response as JSONObj
 
     const encryptionSettingsInfos = this.prepareEncryptionSettings(metadata)
