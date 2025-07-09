@@ -1,8 +1,8 @@
 {
   "name": "vaultrice",
+  "description": "A TypeScript/JavaScript SDK for Vaultrice - persistent, encrypted, real-time key-value storage",
   "globalName": "Vaultrice",
   "version": "1.0.0",
-  "description": "",
   "type": "module",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
@@ -28,7 +28,9 @@
     "prepareDotEnvs": "node scripts/prepare-dot-envs.js",
     "test": "npm run lint && vitest",
     "test:integration:local": "vitest --mode integration-local",
-    "test:integration:dev": "vitest --mode integration-dev"
+    "test:integration:dev": "vitest --mode integration-dev",
+    "docs": "typedoc",
+    "serve-docs": "http-server docs -o"
   },
   "author": "",
   "license": "MIT",
@@ -38,10 +40,12 @@
     "dotenv": "16.5.0",
     "eslint": "9.27.0",
     "eslint-plugin-import": "2.32.0",
+    "http-server": "14.1.1",
     "mock-socket": "9.3.1",
     "neostandard": "0.12.1",
     "rollup": "4.41.0",
     "rollup-plugin-typescript2": "0.36.0",
+    "typedoc": "0.28.7",
     "typescript": "5.8.3",
     "vitest": "3.1.4"
   }

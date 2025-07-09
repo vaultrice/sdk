@@ -1,5 +1,2 @@
-import nls from './dist/esm/NonLocalStorage.js'
-import so from './dist/esm/SyncObject.js'
-
-export const NonLocalStorage = nls
-export const createSyncObject = so
+export { default as NonLocalStorage } from './dist/esm/NonLocalStorage.js'
+export { default as createSyncObject } from './dist/esm/SyncObject.js'

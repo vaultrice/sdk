@@ -1,1 +1,0 @@
-"use strict";const t=Symbol("vaultrice/credentials"),e=Symbol("vaultrice/encryptionSettings"),r=Symbol("vaultrice/previousEncryptionSettings"),o=Symbol("vaultrice/errorHandlers"),S=Symbol("vaultrice/ws");exports.CREDENTIALS=t,exports.ENCRYPTION_SETTINGS=e,exports.ERROR_HANDLERS=o,exports.PREVIOUS_ENCRYPTION_SETTINGS=r,exports.WEBSOCKET=S;

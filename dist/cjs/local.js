@@ -1,1 +1,0 @@
-"use strict";const o="NON_LOCAL_STORAGE_LOCAL_ID";exports.getLocalId=()=>"undefined"!=typeof window&&window.localStorage?window.localStorage.getItem(o):null,exports.setLocalId=e=>{"undefined"!=typeof window&&window.localStorage&&window.localStorage.setItem(o,e)};

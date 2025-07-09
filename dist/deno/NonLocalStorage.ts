@@ -10,9 +10,21 @@ import {
 } from './types'
 import { ENCRYPTION_SETTINGS } from './symbols.ts'
 
+/**
+ * Provides a persistent, optionally encrypted, remote key-value store.
+ * Supports atomic operations, TTL, and presence via websockets.
+ *
+ * @remarks
+ * Use this class to interact with the Vaultrice API for storing and retrieving data.
+ */
 export default class NonLocalStorage extends WebSocketFunctions {
   private ttl: number | undefined
 
+  /**
+   * Create a NonLocalStorage instance.
+   * @param credentials - API credentials.
+   * @param id - Optional ID.
+   */
   constructor (
     credentials: {
       apiKey: string,
@@ -21,6 +33,11 @@ export default class NonLocalStorage extends WebSocketFunctions {
     },
     id?: string
   )
+  /**
+   * Create a NonLocalStorage instance.
+   * @param credentials - API credentials.
+   * @param options - Optional instance options.
+   */
   constructor (
     credentials: {
       apiKey: string,
@@ -29,6 +46,11 @@ export default class NonLocalStorage extends WebSocketFunctions {
     },
     options?: InstanceOptions
   )
+  /**
+   * Create a NonLocalStorage instance.
+   * @param credentials - API credentials.
+   * @param idOrOptions - Optional ID or instance options.
+   */
   constructor (
     credentials: {
       apiKey: string,
@@ -45,6 +67,13 @@ export default class NonLocalStorage extends WebSocketFunctions {
     }
   }
 
+  /**
+   * Store a value by key.
+   * @param name - The key name.
+   * @param value - The value to store.
+   * @param options - Optional TTL override.
+   * @returns Metadata about the stored item.
+   */
   async setItem (name: string, value: ValueType, options?: { ttl?: number }): Promise<SetReturnType> {
     if (!name) throw new Error('No name passed!')
     if (!value && value !== 0 && value !== '' && value !== false) throw new Error('No value passed!')
@@ -71,6 +100,11 @@ export default class NonLocalStorage extends WebSocketFunctions {
     }
   }
 
+  /**
+   * Store multiple values at once.
+   * @param items - Object of key/value pairs.
+   * @returns Metadata for each stored item.
+   */
   async setItems (items: Record<string, { value: ValueType, ttl?: number }>): Promise<SetItemsType | undefined> {
     if (!items || Object.keys(items).length === 0) throw new Error('No items passed!')
     if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
@@ -103,6 +137,11 @@ export default class NonLocalStorage extends WebSocketFunctions {
     }, {})
   }
 
+  /**
+   * Retrieve a value by key.
+   * @param name - The key name.
+   * @returns The item, or undefined if not found.
+   */
   async getItem<T = ValueType> (name: string): Promise<ItemType<T> | undefined> {
     if (!name) throw new Error('No name passed!')
     if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
@@ -141,6 +180,11 @@ export default class NonLocalStorage extends WebSocketFunctions {
     }
   }
 
+  /**
+   * Retrieve multiple values by key.
+   * @param names - Array of key names.
+   * @returns Object of items found.
+   */
   async getItems (names: string[]): Promise<ItemsType | undefined> {
     if (!names || names.length === 0) throw new Error('No names passed!')
     if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
@@ -199,6 +243,11 @@ export default class NonLocalStorage extends WebSocketFunctions {
     return result
   }
 
+  /**
+   * Retrieve all items, optionally filtered by prefix.
+   * @param options - Optional prefix filter.
+   * @returns Object of all items.
+   */
   async getAllItems (options?: { prefix?: string }): Promise<ItemsType | undefined> {
     if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
 
@@ -234,23 +283,43 @@ export default class NonLocalStorage extends WebSocketFunctions {
     return result
   }
 
+  /**
+   * Get all keys, optionally filtered by prefix.
+   * @param options - Optional prefix filter.
+   * @returns Array of key names.
+   */
   async getAllKeys (options?: { prefix?: string }): Promise<string[] | undefined> {
     const response = await this.request('GET', `/cache-keys/${this.class}/${this.id}${options?.prefix ? `?prefix=${options?.prefix}` : ''}`)
     return response as unknown as string[]
   }
 
+  /**
+   * Remove a value by key.
+   * @param name - The key name.
+   */
   async removeItem (name: string): Promise<undefined> {
     if (!name) throw new Error('No name passed!')
 
     await this.request('DELETE', `/cache/${this.class}/${this.id}/${name}`)
   }
 
+  /**
+   * Remove multiple values by key.
+   * @param names - Array of key names.
+   */
   async removeItems (names: string[]): Promise<undefined> {
     if (!names || names.length === 0) throw new Error('No names passed!')
 
     await this.request('DELETE', `/cache/${this.class}/${this.id}`, names)
   }
 
+  /**
+   * Atomically increment a numeric value.
+   * @param name - The key name.
+   * @param value - Amount to increment by (default 1).
+   * @param options - Optional TTL override.
+   * @returns The updated item.
+   */
   async incrementItem (name: string, value: number = 1, options?: { ttl?: number }): Promise<ItemType> {
     if (!name) throw new Error('No name passed!')
     if (value === undefined || value === null) throw new Error('No value passed!')
@@ -268,6 +337,13 @@ export default class NonLocalStorage extends WebSocketFunctions {
     }
   }
 
+  /**
+   * Atomically decrement a numeric value.
+   * @param name - The key name.
+   * @param value - Amount to decrement by (default 1).
+   * @param options - Optional TTL override.
+   * @returns The updated item.
+   */
   async decrementItem (name: string, value: number = 1, options?: { ttl?: number }): Promise<ItemType> {
     if (!name) throw new Error('No name passed!')
     if (value === undefined || value === null) throw new Error('No value passed!')
@@ -285,6 +361,9 @@ export default class NonLocalStorage extends WebSocketFunctions {
     }
   }
 
+  /**
+   * Remove all items for this instance.
+   */
   async clear (): Promise<undefined> {
     await this.request('DELETE', `/cache/${this.class}/${this.id}`)
   }

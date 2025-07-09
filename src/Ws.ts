@@ -2,10 +2,31 @@ import Base from './Base'
 import { CREDENTIALS, ENCRYPTION_SETTINGS, ERROR_HANDLERS, WEBSOCKET } from './symbols'
 import { ItemType, JSONObj, InstanceOptions, JoinedConnections, JoinedConnection, LeavedConnection } from './types'
 
+/**
+ * WebSocket-enabled functionality for real-time communication and presence features.
+ *
+ * @remarks
+ * Extends the Base class with WebSocket capabilities including:
+ * - Real-time messaging between connected clients
+ * - Presence awareness (join/leave notifications)
+ * - Live data synchronization events (setItem/removeItem)
+ * - Event-driven architecture with automatic encryption/decryption
+ */
 export default class WebSocketFunctions extends Base {
+  /** @internal Whether this instance has joined the presence channel */
   private hasJoined: boolean
+
+  /** @internal Array of error handlers for WebSocket errors */
   private [ERROR_HANDLERS]: ((error: Error) => void)[]
+
+  /** @internal The WebSocket connection instance */
   private [WEBSOCKET]?: WebSocket
+
+  /**
+   * Create a WebSocketFunctions instance with string ID.
+   * @param credentials - API credentials containing apiKey, apiSecret, and projectId.
+   * @param id - Optional unique identifier for this instance.
+   */
   constructor (
     credentials: {
       apiKey: string,
@@ -14,6 +35,11 @@ export default class WebSocketFunctions extends Base {
     },
     id?: string
   )
+  /**
+   * Create a WebSocketFunctions instance with options.
+   * @param credentials - API credentials containing apiKey, apiSecret, and projectId.
+   * @param options - Instance configuration options.
+   */
   constructor (
     credentials: {
       apiKey: string,
@@ -22,6 +48,11 @@ export default class WebSocketFunctions extends Base {
     },
     options?: InstanceOptions
   )
+  /**
+   * Create a WebSocketFunctions instance.
+   * @param credentials - API credentials containing apiKey, apiSecret, and projectId.
+   * @param idOrOptions - Either a string ID or instance options object.
+   */
   constructor (
     credentials: {
       apiKey: string,
@@ -39,6 +70,24 @@ export default class WebSocketFunctions extends Base {
     this[ERROR_HANDLERS] = []
   }
 
+  /**
+   * Send a message to all connected clients in the same room.
+   *
+   * @param msg - The message object to send.
+   * @param options - Transport options (WebSocket or HTTP).
+   * @throws Error if encryption is configured but getEncryptionSettings() not called.
+   *
+   * @remarks
+   * Messages are automatically encrypted if encryption is configured.
+   * WebSocket transport is preferred for real-time delivery, but HTTP can be used as fallback.
+   *
+   * @example
+   * ```typescript
+   * await instance.send({ type: 'chat', message: 'Hello everyone!' });
+   * // Send via HTTP instead of WebSocket
+   * await instance.send({ data: 'important' }, { transport: 'http' });
+   * ```
+   */
   async send (msg: JSONObj, options: { transport?: 'ws' | 'http' } = { transport: 'ws' }): Promise<undefined> {
     if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
 
@@ -67,16 +116,97 @@ export default class WebSocketFunctions extends Base {
     ws.send(JSON.stringify(wrappedMsg))
   }
 
+  /**
+   * Register an event handler for WebSocket connection events.
+   * @param event - The 'connect' event name.
+   * @param handler - Function to call when connected.
+   */
   on (event: 'connect', handler: () => void): any
+  /**
+   * Register an event handler for WebSocket disconnection events.
+   * @param event - The 'disconnect' event name.
+   * @param handler - Function to call when disconnected.
+   */
   on (event: 'disconnect', handler: () => void): any
+  /**
+   * Register an event handler for presence join events.
+   * @param event - The 'presence:join' event name.
+   * @param handler - Function to call when a connection joins.
+   */
   on (event: 'presence:join', handler: (joinedConnection: JoinedConnection) => void): any
+  /**
+   * Register an event handler for presence leave events.
+   * @param event - The 'presence:leave' event name.
+   * @param handler - Function to call when a connection leaves.
+   */
   on (event: 'presence:leave', handler: (leavedConnection: LeavedConnection) => void): any
+  /**
+   * Register an event handler for incoming messages.
+   * @param event - The 'message' event name.
+   * @param handler - Function to call when a message is received.
+   */
   on (event: 'message', handler: (data: JSONObj) => void): any
+  /**
+   * Register an event handler for WebSocket errors.
+   * @param event - The 'error' event name.
+   * @param handler - Function to call when an error occurs.
+   */
   on (event: 'error', handler: (error: Error) => void): any
+  /**
+   * Register an event handler for all setItem events.
+   * @param event - The 'setItem' event name.
+   * @param handler - Function to call when any item is set.
+   */
   on (event: 'setItem', handler: (item: ItemType & { prop: string }) => void): any
+  /**
+   * Register an event handler for specific setItem events.
+   * @param event - The 'setItem' event name.
+   * @param name - The specific item name to listen for.
+   * @param handler - Function to call when the named item is set.
+   */
   on (event: 'setItem', name: string, handler: (item: ItemType & { prop: string }) => void): any
+  /**
+   * Register an event handler for all removeItem events.
+   * @param event - The 'removeItem' event name.
+   * @param handler - Function to call when any item is removed.
+   */
   on (event: 'removeItem', handler: (item: { prop: string }) => void): any
+  /**
+   * Register an event handler for specific removeItem events.
+   * @param event - The 'removeItem' event name.
+   * @param name - The specific item name to listen for.
+   * @param handler - Function to call when the named item is removed.
+   */
   on (event: 'removeItem', name: string, handler: (item: { prop: string }) => void): any
+  /**
+   * Register event handlers for various WebSocket events.
+   *
+   * @param event - The event name to listen for.
+   * @param handlerOrName - Either an event handler function or a specific item name.
+   * @param handler - Optional handler function when handlerOrName is a string.
+   * @throws Error if no event handler is provided.
+   *
+   * @remarks
+   * Supports listening to:
+   * - Connection events: 'connect', 'disconnect', 'error'
+   * - Presence events: 'presence:join', 'presence:leave'
+   * - Data events: 'setItem', 'removeItem' (with optional item name filtering)
+   * - Custom messages: 'message'
+   *
+   * All encrypted data is automatically decrypted before passing to handlers.
+   *
+   * @example
+   * ```typescript
+   * // Listen for connection events
+   * instance.on('connect', () => console.log('Connected!'));
+   *
+   * // Listen for all setItem events
+   * instance.on('setItem', (item) => console.log('Item changed:', item));
+   *
+   * // Listen for specific item changes
+   * instance.on('setItem', 'username', (item) => console.log('Username changed:', item.value));
+   * ```
+   */
   on (
     event: string,
     handlerOrName: ((item: ItemType & { prop: string }) => void) | ((name: string) => void) | (() => void) | ((error: Error) => void) | ((data: JSONObj) => void) | ((joinedConnection: JoinedConnection) => void) | ((leavedConnection: LeavedConnection) => void) | string,
@@ -211,6 +341,14 @@ export default class WebSocketFunctions extends Base {
     }
   }
 
+  /**
+   * Close the WebSocket connection and clean up resources.
+   *
+   * @remarks
+   * If the instance has joined the presence channel, it will automatically
+   * leave before disconnecting. This ensures proper cleanup and notifies
+   * other clients of the departure.
+   */
   disconnect () {
     if (!this[WEBSOCKET]) return
     if (this.hasJoined) {
@@ -220,6 +358,15 @@ export default class WebSocketFunctions extends Base {
     delete this[WEBSOCKET]
   }
 
+  /**
+   * Get or create the WebSocket connection.
+   * @internal
+   * @returns The active WebSocket instance.
+   *
+   * @remarks
+   * Creates a new connection if one doesn't exist. Handles authentication
+   * via query parameters and sets up automatic cleanup on close.
+   */
   getWebSocket (): WebSocket {
     if (this[WEBSOCKET]) return this[WEBSOCKET]
 
@@ -257,6 +404,27 @@ export default class WebSocketFunctions extends Base {
     return ws
   }
 
+  /**
+   * Join the presence channel to announce this connection to others.
+   *
+   * @param data - Optional data to associate with this connection.
+   * @throws Error if encryption is configured but getEncryptionSettings() not called.
+   *
+   * @remarks
+   * After joining, this connection will:
+   * - Appear in getJoinedConnections() results for other clients
+   * - Trigger 'presence:join' events for other connected clients
+   * - Automatically send 'presence:leave' when disconnecting
+   *
+   * @example
+   * ```typescript
+   * await instance.join({
+   *   username: 'Alice',
+   *   status: 'online',
+   *   avatar: 'avatar1.png'
+   * });
+   * ```
+   */
   async join (data: JSONObj): Promise<undefined> {
     this.hasJoined = true
     if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
@@ -269,6 +437,14 @@ export default class WebSocketFunctions extends Base {
     ws.send(JSON.stringify(msg))
   }
 
+  /**
+   * Leave the presence channel.
+   *
+   * @remarks
+   * Notifies other connected clients that this connection has left.
+   * This is automatically called when disconnecting if the connection
+   * had previously joined.
+   */
   async leave (): Promise<undefined> {
     if (!this.hasJoined) return
     this.hasJoined = false
@@ -279,6 +455,27 @@ export default class WebSocketFunctions extends Base {
     ws.send(JSON.stringify(msg))
   }
 
+  /**
+   * Get a list of all currently connected clients in the presence channel.
+   *
+   * @returns Promise resolving to an array of connected clients with their data.
+   * @throws Error if encryption is configured but getEncryptionSettings() not called.
+   *
+   * @remarks
+   * Each connection object includes:
+   * - connectionId: Unique identifier for the connection
+   * - joinedAt: Timestamp when the connection joined
+   * - data: Custom data provided when joining (automatically decrypted)
+   *
+   * @example
+   * ```typescript
+   * const connections = await instance.getJoinedConnections();
+   * console.log(`${connections.length} users online`);
+   * connections.forEach(conn => {
+   *   console.log(`User: ${conn.data.username}, joined: ${new Date(conn.joinedAt)}`);
+   * });
+   * ```
+   */
   async getJoinedConnections (): Promise<JoinedConnections> {
     if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
     let response

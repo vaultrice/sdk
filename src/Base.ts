@@ -6,6 +6,11 @@ import getLogger, { Logger } from './logger'
 import decodeJwt from './decodeJwt'
 import { CREDENTIALS, ENCRYPTION_SETTINGS, PREVIOUS_ENCRYPTION_SETTINGS } from './symbols'
 
+/**
+ * Generate a unique ID for an instance.
+ * @internal
+ * @returns A UUID-based string ID.
+ */
 function getId () {
   // if no id provided, try to check if there is one in the real local storage...
   const localId = getLocalId()
@@ -14,25 +19,92 @@ function getId () {
   return `${uuidv4()}-${uuidv4()}`
 }
 
+/** @internal */
 const DEFAULT_DURABLE_CACHE_CLASS = '_undefined_'
 
+/**
+ * Base class providing core API functionality including authentication,
+ * encryption settings, and HTTP request handling.
+ *
+ * @remarks
+ * This class handles the low-level communication with the Vaultrice API,
+ * including access token management, encryption setup, and request/response processing.
+ */
 export default class Base {
+  /**
+   * @internal API base URL
+   * @private
+   */
   protected static basePath: string = 'https://api.vaultrice.app'
+
+  /**
+   * Optional encryption handler factory function
+   * @private
+   */
   protected getEncryptionHandler?: (encryptionSettings: EncryptionSettings) => Promise<EncryptionHandler>
+
+  /**
+   * Whether to automatically update items with old encryption
+   * @private
+   */
   protected readonly autoUpdateOldEncryptedValues?: boolean
+
+  /**
+   * Key derivation options for encryption
+   * @private
+   */
   protected readonly keyDerivationOptions?: KeyDerivationOptions
+
+  /**
+   * ID signature for authentication
+   * @private
+   */
   protected readonly idSignature?: string
+
+  /**
+   * Key version for ID signature
+   * @private
+   */
   protected readonly idSignatureKeyVersion?: number
+
+  /**
+   * Storage class name
+   * @private
+   */
   protected readonly class: string = DEFAULT_DURABLE_CACHE_CLASS
+
+  /**
+   * Logger instance
+   * @private
+   */
   protected readonly logger: Logger
+
+  /** Unique instance identifier */
   id: string
+
+  /** @internal Current access token */
   protected accessToken?: string
+
+  /** @internal Current encryption handler */
   protected encryptionHandler?: EncryptionHandler
+
+  /** @internal Promise for token acquisition */
   private isGettingAccessToken?: Promise<void>
+
+  /** @internal API credentials */
   private [CREDENTIALS]: { apiKey: string, apiSecret: string, projectId: string }
+
+  /** @internal Current encryption settings */
   private [ENCRYPTION_SETTINGS]?: EncryptionSettings
+
+  /** @internal Previous encryption settings for backwards compatibility */
   private [PREVIOUS_ENCRYPTION_SETTINGS]?: EncryptionSettings[]
 
+  /**
+   * Create a Base instance with string ID.
+   * @param credentials - API credentials containing apiKey, apiSecret, and projectId.
+   * @param id - Optional unique identifier for this instance.
+   */
   constructor (
     credentials: {
       apiKey: string,
@@ -41,6 +113,11 @@ export default class Base {
     },
     id?: string
   )
+  /**
+   * Create a Base instance with options.
+   * @param credentials - API credentials containing apiKey, apiSecret, and projectId.
+   * @param options - Instance configuration options.
+   */
   constructor (
     credentials: {
       apiKey: string,
@@ -49,6 +126,11 @@ export default class Base {
     },
     options?: InstanceOptions
   )
+  /**
+   * Create a Base instance.
+   * @param credentials - API credentials containing apiKey, apiSecret, and projectId.
+   * @param idOrOptions - Either a string ID or instance options object.
+   */
   constructor (
     credentials: {
       apiKey: string,
@@ -113,6 +195,12 @@ export default class Base {
     this.isGettingAccessToken.then(() => { this.isGettingAccessToken = undefined }, () => { this.isGettingAccessToken = undefined })
   }
 
+  /**
+   * Acquire and manage access tokens for API authentication.
+   * @internal
+   * @remarks
+   * Automatically refreshes tokens before expiry and handles JWT decoding.
+   */
   private async getAccessToken () {
     const response = await this.request('GET', '/auth/token')
     const accessToken = response as string
@@ -122,6 +210,13 @@ export default class Base {
     setTimeout(() => this.getAccessToken(), (expiresIn - (2 * 60 * 1000)))
   }
 
+  /**
+   * Get encryption handler for a specific key version.
+   * @internal
+   * @param keyVersion - The encryption key version.
+   * @returns The appropriate encryption handler or undefined.
+   * @throws Error if key version mismatch cannot be resolved.
+   */
   protected async getEncryptionHandlerForKeyVersion (keyVersion?: number): Promise<EncryptionHandler | undefined> {
     if ((keyVersion as number) > -1) {
       if (keyVersion !== this[ENCRYPTION_SETTINGS]?.keyVersion) {
@@ -148,6 +243,12 @@ export default class Base {
     return this.encryptionHandler
   }
 
+  /**
+   * Process and store encryption settings.
+   * @internal
+   * @param metadata - Encryption settings information.
+   * @throws Error if no encryption handler is defined.
+   */
   private async handleEncryptionSettings (metadata: EncryptionSettingsInfos) {
     if (!this.getEncryptionHandler) throw new Error('No getEncryptionHandler defined!')
     this[ENCRYPTION_SETTINGS] = metadata.encryptionSettings
@@ -155,6 +256,12 @@ export default class Base {
     this.encryptionHandler = await this.getEncryptionHandler(metadata.encryptionSettings)
   }
 
+  /**
+   * Convert raw encryption metadata to typed settings.
+   * @internal
+   * @param metadata - Raw encryption metadata from API.
+   * @returns Typed encryption settings information.
+   */
   private prepareEncryptionSettings (metadata: JSONObj): EncryptionSettingsInfos {
     return {
       encryptionSettings: {
@@ -171,8 +278,14 @@ export default class Base {
   }
 
   /**
-   * Only mandatory if using e2e encryption
-   * @param [saltLength=16]
+   * Retrieve or initialize encryption settings for end-to-end encryption.
+   * @param saltLength - Optional salt length in bytes (default: 16).
+   * @returns Promise resolving to encryption settings information.
+   * @throws Error if called without encryption configuration.
+   * @remarks
+   * This method is mandatory when using end-to-end encryption. It fetches
+   * the encryption salt and key version from the server, then initializes
+   * the encryption handler.
    */
   async getEncryptionSettings (saltLength?: number): Promise<EncryptionSettingsInfos> {
     if (!this.getEncryptionHandler) throw new Error('No passphrase and no getEncryptionHandler passed! This function is only allowed with e2e encryption!')
@@ -186,8 +299,13 @@ export default class Base {
   }
 
   /**
-   * Only useful if using e2e encryption
-   * @param [saltLength=16]
+   * Rotate encryption keys to enhance security.
+   * @param saltLength - Optional salt length in bytes (default: 16).
+   * @returns Promise resolving to new encryption settings information.
+   * @throws Error if called without encryption configuration.
+   * @remarks
+   * This generates new encryption settings while preserving access to data
+   * encrypted with previous keys. Useful for periodic security rotation.
    */
   async rotateEncryption (saltLength?: number): Promise<EncryptionSettingsInfos> {
     if (!this.getEncryptionHandler) throw new Error('No passphrase and no getEncryptionHandler passed! This function is only allowed with e2e encryption!')
@@ -200,6 +318,17 @@ export default class Base {
     return encryptionSettingsInfos
   }
 
+  /**
+   * Make authenticated HTTP requests to the Vaultrice API.
+   * @param method - HTTP method (GET, POST, DELETE, etc.).
+   * @param path - API endpoint path.
+   * @param body - Optional request body (JSON object, string, or string array).
+   * @returns Promise resolving to the response data.
+   * @throws Error if the request fails or returns an error status.
+   * @remarks
+   * Handles authentication, content-type headers, encryption key versions,
+   * and response parsing automatically.
+   */
   async request (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {
     if (!this.accessToken && this.isGettingAccessToken) await this.isGettingAccessToken
     const headers: {

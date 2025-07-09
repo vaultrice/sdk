@@ -1,3 +1,6 @@
+/**
+ * Supported value types for storage.
+ */
 export type ValueType =
   | string
   | number
@@ -5,17 +8,40 @@ export type ValueType =
   | null
   | ValueType[]
   | { [key: string]: ValueType }
+
+/**
+ * Metadata returned after setting a value.
+ */
 export type SetReturnType = { expiresAt: number, keyVersion?: number }
+
+/**
+ * An item as returned from storage.
+ */
 export type ItemType<T = ValueType> = { value: T } & SetReturnType
+
+/**
+ * Multiple items as returned from storage.
+ */
 export type ItemsType = Record<string, ItemType>
+
+/**
+ * Metadata for multiple set items.
+ */
 export type SetItemsType = Record<string, SetReturnType>
+
+/**
+ * Log levels for the SDK.
+ */
 export type LogLevel =
   | 'error'
   | 'warn'
   | 'info'
   | 'debug'
 
-type JSONObjInner =
+/**
+ * JSON object type.
+ */
+export type JSONObjInner =
   | string
   | number
   | boolean
@@ -25,73 +51,87 @@ type JSONObjInner =
   | JSONObjInner[]
 export type JSONObj = { [key: string]: JSONObjInner }
 
+/**
+ * Options for key derivation.
+ */
 export type KeyDerivationOptions = {
-  /**
-   * @default 100000
-   */
+  /** Number of PBKDF2 iterations. @default 100000 */
   iterations?: number,
-  /**
-   * @default 'SHA-512'
-   */
+  /** Hash algorithm. @default 'SHA-512' */
   hash?: HashAlgorithmIdentifier,
-  /**
-   * @default { name: 'AES-GCM', length: 256 }
-   */
+  /** Key type. @default { name: 'AES-GCM', length: 256 } */
   derivedKeyType?: AesDerivedKeyParams
 }
 
+/**
+ * Encryption handler interface.
+ */
 export type EncryptionHandler = {
   encrypt: ((v: string) => Promise<string>)
   decrypt: ((v: string) => Promise<string>)
 }
 
+/**
+ * Options for NonLocalStorage/SyncObject instances.
+ */
 export type InstanceOptions = {
   id?: string,
-  /**
-   * @default '_undefined_'
-   */
+  /** Storage class. @default '_undefined_' */
   class?: string,
   ttl?: number,
   passphrase?: string,
-  /**
-   * @default {
-   *   iterations: 100000,
-   *   hash: 'SHA-512',
-   *   derivedKeyType: { name: 'AES-GCM', length: 256 }
-   * }
-   */
+  /** Key derivation options. */
   keyDerivationOptions?: KeyDerivationOptions,
+  /** Custom encryption handler. */
   getEncryptionHandler?: (encryptionSettings: EncryptionSettings) => Promise<EncryptionHandler>
-  /**
-   * @default true
-   */
+  /** Auto-update old encrypted values. @default true */
   autoUpdateOldEncryptedValues?: boolean,
   idSignature?: string,
   idSignatureKeyVersion?: number,
-  /**
-   * @default 'warn'
-   */
+  /** Log level. @default 'warn' */
   logLevel?: LogLevel
 }
 
+/**
+ * Encryption settings.
+ */
 export type EncryptionSettings = {
   salt: Uint8Array,
   keyVersion: number,
   createdAt: number
 }
 
+/**
+ * Encryption settings info, including previous versions.
+ */
 export type EncryptionSettingsInfos = {
   encryptionSettings: EncryptionSettings,
   previousEncryptionSettings?: EncryptionSettings[]
 }
 
+/**
+ * Presence event: connection left.
+ */
 export type LeavedConnection = {
   connectionId: string,
   data?: JSONObj
 }
 
+/**
+ * Presence event: connection joined.
+ */
 export type JoinedConnection = LeavedConnection & {
   joinedAt: number
 }
 
+/**
+ * List of joined connections.
+ */
 export type JoinedConnections = JoinedConnection[]
+
+/**
+ * Metadata for a SyncObject.
+ */
+export interface SyncObjectMeta {
+  readonly id: string
+}

@@ -4,8 +4,8 @@ npm-debug.log
 package-lock.json
 types
 #scripts
-# !dist/
-# dist/*
-# !dist/deno/
+!dist/
+dist/*
+!dist/deno/
 
 .env.*

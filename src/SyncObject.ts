@@ -1,13 +1,17 @@
 import NonLocalStorage from './NonLocalStorage'
 import {
   ItemType,
-  InstanceOptions
+  InstanceOptions,
+  SyncObjectMeta
 } from './types'
 
-interface SyncObjectMeta {
-  readonly id: string
-}
-
+/**
+ * Create a proxy object that syncs its properties to NonLocalStorage.
+ *
+ * @param credentials - API credentials.
+ * @param idOrOptions - Optional ID or instance options.
+ * @returns Proxy object with live sync and an `id` property.
+ */
 export default async function createSyncObject<T extends object> (
   credentials: {
     apiKey: string

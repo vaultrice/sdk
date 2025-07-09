@@ -8,3 +8,5 @@ README.md
 .eslintignore
 test
 scripts
+docs
+typedoc.json

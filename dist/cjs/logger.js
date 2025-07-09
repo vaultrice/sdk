@@ -1,1 +1,0 @@
-"use strict";Object.defineProperty(exports,"__esModule",{value:!0});const e=["error","warn","info","debug"];class o{constructor(e){this.level=e}log(o,r){e.indexOf(this.level)<e.indexOf(o)||console[o](r)}}exports.Logger=o,exports.default=(e="warn")=>new o(e);
