@@ -328,6 +328,7 @@ export default class Base {
    * @remarks
    * Handles authentication, content-type headers, encryption key versions,
    * and response parsing automatically.
+   * @private
    */
   async request (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {
     if (!this.accessToken && this.isGettingAccessToken) await this.isGettingAccessToken
