@@ -134,4 +134,38 @@ export type JoinedConnections = JoinedConnection[]
  */
 export interface SyncObjectMeta {
   readonly id: string
+  readonly on: {
+    (event: 'connect', handler: () => void): any
+    (event: 'disconnect', handler: () => void): any
+    (event: 'presence:join', handler: (joinedConnection: JoinedConnection) => void): any
+    (event: 'presence:leave', handler: (leavedConnection: LeavedConnection) => void): any
+    (event: 'message', handler: (data: JSONObj) => void): any
+    (event: 'error', handler: (error: Error) => void): any
+    (event: 'setItem', handler: (item: ItemType & { prop: string }) => void): any
+    (event: 'setItem', name: string, handler: (item: ItemType & { prop: string }) => void): any
+    (event: 'removeItem', handler: (item: { prop: string }) => void): any
+    (event: 'removeItem', name: string, handler: (item: { prop: string }) => void): any
+    (
+      event: string,
+      handlerOrName: ((item: ItemType & { prop: string }) => void) | ((name: string) => void) | (() => void) | ((error: Error) => void) | ((data: JSONObj) => void) | ((joinedConnection: JoinedConnection) => void) | ((leavedConnection: LeavedConnection) => void) | string,
+      handler?: ((item: ItemType & { prop: string }) => void) | (() => void) | ((name: string) => void) | ((error: Error) => void) | ((data: JSONObj) => void)
+    ): any
+  }
+  readonly off: {
+    (event: 'connect', handler: () => void): any
+    (event: 'disconnect', handler: () => void): any
+    (event: 'presence:join', handler: (joinedConnection: JoinedConnection) => void): any
+    (event: 'presence:leave', handler: (leavedConnection: LeavedConnection) => void): any
+    (event: 'message', handler: (data: JSONObj) => void): any
+    (event: 'error', handler: (error: Error) => void): any
+    (event: 'setItem', handler: (item: ItemType & { prop: string }) => void): any
+    (event: 'setItem', name: string, handler: (item: ItemType & { prop: string }) => void): any
+    (event: 'removeItem', handler: (item: { prop: string }) => void): any
+    (event: 'removeItem', name: string, handler: (item: { prop: string }) => void): any
+    (
+      event: string,
+      handlerOrName: ((item: ItemType & { prop: string }) => void) | ((name: string) => void) | (() => void) | ((error: Error) => void) | ((data: JSONObj) => void) | ((joinedConnection: JoinedConnection) => void) | ((leavedConnection: LeavedConnection) => void) | string,
+      handler?: ((item: ItemType & { prop: string }) => void) | (() => void) | ((name: string) => void) | ((error: Error) => void) | ((data: JSONObj) => void)
+    ): any
+  }
 }

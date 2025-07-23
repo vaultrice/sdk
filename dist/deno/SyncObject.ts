@@ -49,8 +49,17 @@ export default async function createSyncObject<T extends object> (
     })
   }
 
+  // Create bound functions once and reuse them
+  const boundOn = nls.on.bind(nls)
+  const boundOff = nls.off.bind(nls)
+
   const handler: ProxyHandler<T & SyncObjectMeta> = {
     set (_, prop: string, value) {
+      // Prevent overwriting special properties
+      if (prop === 'id' || prop === 'on' || prop === 'off') {
+        throw new Error(`Cannot set property '${prop}' - it is a reserved property`)
+      }
+
       if (value === undefined) {
         nls.removeItem(prop)
         delete (store as any)[prop]
@@ -63,6 +72,8 @@ export default async function createSyncObject<T extends object> (
     },
     get (_, prop: string | symbol) {
       if (prop === 'id') return nls.id
+      if (prop === 'on') return boundOn
+      if (prop === 'off') return boundOff
 
       const item = (store as any)[prop] as ItemType
       if (!item) return undefined
@@ -71,11 +82,93 @@ export default async function createSyncObject<T extends object> (
         return undefined
       }
       return item.value
+    },
+    has (_, prop: string | symbol) {
+      // Make sure special properties are always considered as existing
+      if (prop === 'id' || prop === 'on' || prop === 'off') return true
+
+      const item = (store as any)[prop] as ItemType
+      if (!item) return false
+      if (item.expiresAt < Date.now()) {
+        delete (store as any)[prop]
+        return false
+      }
+      return true
+    },
+    ownKeys (_) {
+      // Get all keys from the target (base object) first
+      const targetKeys = Reflect.ownKeys(_)
+
+      // Get all non-expired keys from the store
+      const storeKeys = Object.keys(store).filter(k => {
+        const item = (store as any)[k] as ItemType
+        if (!item) return false
+        if (item.expiresAt < Date.now()) {
+          delete (store as any)[k]
+          return false
+        }
+        return true
+      })
+
+      // Combine both, ensuring no duplicates
+      const allKeys = new Set([...targetKeys, ...storeKeys])
+      return Array.from(allKeys)
+    },
+    getOwnPropertyDescriptor (_, prop: string | symbol) {
+      // Define special properties as non-configurable and non-writable
+      if (prop === 'id' || prop === 'on' || prop === 'off') {
+        return {
+          configurable: false,
+          enumerable: true, // Make them enumerable so they appear in Object.keys()
+          writable: false,
+          value: prop === 'id'
+            ? nls.id
+            : prop === 'on'
+              ? boundOn
+              : boundOff
+        }
+      }
+
+      const item = (store as any)[prop] as ItemType
+      if (!item) return undefined
+      if (item.expiresAt < Date.now()) {
+        delete (store as any)[prop]
+        return undefined
+      }
+
+      return {
+        configurable: true,
+        enumerable: true,
+        writable: true,
+        value: item.value
+      }
     }
   }
 
-  // start from an object that *only* has .id
+  // Create a base object with properly defined special properties using the same bound functions
   const base = { id: nls.id } as SyncObjectMeta
+
+  // Define special properties on the base object to match the proxy descriptor
+  Object.defineProperty(base, 'id', {
+    configurable: false,
+    enumerable: true, // Match the proxy descriptor
+    writable: false,
+    value: nls.id
+  })
+
+  Object.defineProperty(base, 'on', {
+    configurable: false,
+    enumerable: true, // Match the proxy descriptor
+    writable: false,
+    value: boundOn
+  })
+
+  Object.defineProperty(base, 'off', {
+    configurable: false,
+    enumerable: true, // Match the proxy descriptor
+    writable: false,
+    value: boundOff
+  })
 
   // cast the Proxy to T & SyncObjectMeta
   return new Proxy(base, handler) as T & SyncObjectMeta

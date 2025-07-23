@@ -1,5 +1,5 @@
 import Base from './Base.ts'
-import { CREDENTIALS, ENCRYPTION_SETTINGS, ERROR_HANDLERS, WEBSOCKET } from './symbols.ts'
+import { CREDENTIALS, ENCRYPTION_SETTINGS, ERROR_HANDLERS, EVENT_HANDLERS, WEBSOCKET } from './symbols.ts'
 import { ItemType, JSONObj, InstanceOptions, JoinedConnections, JoinedConnection, LeavedConnection } from './types.ts'
 
 /**
@@ -21,6 +21,9 @@ export default class WebSocketFunctions extends Base {
 
   /** @internal The WebSocket connection instance */
   private [WEBSOCKET]?: WebSocket
+
+  /** @internal Event handlers registry for proper cleanup */
+  private [EVENT_HANDLERS]: Map<string, Set<{ handler: Function, wsListener?: Function, itemName?: string }>> = new Map()
 
   /**
    * Create a WebSocketFunctions instance with string ID.
@@ -61,17 +64,15 @@ export default class WebSocketFunctions extends Base {
     },
     idOrOptions?: string | InstanceOptions | undefined
   ) {
-    if (typeof idOrOptions === 'string') {
-      super(credentials, idOrOptions)
-    } else {
-      super(credentials, idOrOptions as InstanceOptions | undefined)
-    }
+    // @ts-ignore
+    super(credentials, idOrOptions)
     this.hasJoined = false
     this[ERROR_HANDLERS] = []
+    this[EVENT_HANDLERS] = new Map()
   }
 
   /**
-   * Send a message to all connected clients in the same room.
+   * Send a message to the server or other clients.
    *
    * @param msg - The message object to send.
    * @param options - Transport options (WebSocket or HTTP).
@@ -214,23 +215,33 @@ export default class WebSocketFunctions extends Base {
   ) {
     const ws = this.getWebSocket()
 
+    // Initialize event set if it doesn't exist
+    if (!this[EVENT_HANDLERS].has(event)) this[EVENT_HANDLERS].set(event, new Set())
+    const eventSet = this[EVENT_HANDLERS].get(event)!
+
     if (event === 'error') {
       if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
       const hndl = handlerOrName as (e: Error) => void
       this[ERROR_HANDLERS].push(hndl)
-      ws.addEventListener('error', (evt: any) => hndl(new Error(evt?.message)))
+      const wsListener = (evt: any) => hndl(new Error(evt?.message))
+      ws.addEventListener('error', wsListener)
+      eventSet.add({ handler: hndl, wsListener })
     }
 
     if (event === 'connect') {
       if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
       const hndl = handlerOrName as () => void
-      ws.addEventListener('open', () => hndl())
+      const wsListener = () => hndl()
+      ws.addEventListener('open', wsListener)
+      eventSet.add({ handler: hndl, wsListener })
     }
 
     if (event === 'disconnect') {
       if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
       const hndl = handlerOrName as () => void
-      ws.addEventListener('close', () => hndl())
+      const wsListener = () => hndl()
+      ws.addEventListener('close', wsListener)
+      eventSet.add({ handler: hndl, wsListener })
     }
 
     const maybeDecryptAndHandle = (msg: any, hndl: any, completePayload: boolean = false) => {
@@ -261,18 +272,20 @@ export default class WebSocketFunctions extends Base {
     if (event === 'message') {
       if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
       const hndl = handlerOrName as (msg: JSONObj) => void
-      ws.addEventListener('message', (evt) => {
+      const wsListener = (evt: MessageEvent) => {
         const msg = JSON.parse(evt.data)
         if (msg.event === 'message') {
           maybeDecryptAndHandle(msg, hndl, true)
         }
-      })
+      }
+      ws.addEventListener('message', wsListener)
+      eventSet.add({ handler: hndl, wsListener })
     }
 
     if (event === 'presence:join') {
       if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
       const hndl = handlerOrName as (joinedConnection: JoinedConnection) => void
-      ws.addEventListener('message', (evt) => {
+      const wsListener = (evt: MessageEvent) => {
         const msg = JSON.parse(evt.data)
         if (msg.event === 'presence:join') {
           maybeDecryptAndHandle(msg, (p: any) => {
@@ -283,13 +296,15 @@ export default class WebSocketFunctions extends Base {
             })
           }, true)
         }
-      })
+      }
+      ws.addEventListener('message', wsListener)
+      eventSet.add({ handler: hndl, wsListener })
     }
 
     if (event === 'presence:leave') {
       if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
       const hndl = handlerOrName as (leavedConnection: LeavedConnection) => void
-      ws.addEventListener('message', (evt) => {
+      const wsListener = (evt: MessageEvent) => {
         const msg = JSON.parse(evt.data)
         if (msg.event === 'presence:leave') {
           maybeDecryptAndHandle(msg, (p: any) => {
@@ -299,25 +314,31 @@ export default class WebSocketFunctions extends Base {
             })
           }, true)
         }
-      })
+      }
+      ws.addEventListener('message', wsListener)
+      eventSet.add({ handler: hndl, wsListener })
     }
 
     if (event === 'setItem') {
       if (typeof handler === 'undefined') {
         if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
         const hndl = handlerOrName as (item: ItemType & { prop: string }) => void
-        ws.addEventListener('message', (evt) => {
+        const wsListener = (evt: MessageEvent) => {
           const msg = JSON.parse(evt.data)
           if (msg.event === 'setItem') maybeDecryptAndHandle(msg, hndl)
-        })
+        }
+        ws.addEventListener('message', wsListener)
+        eventSet.add({ handler: hndl, wsListener })
       } else {
         if (typeof handler !== 'function') throw new Error('No event handler defined!')
         const hndl = handler as (item: ItemType & { prop: string }) => void
-        const name = handlerOrName
-        ws.addEventListener('message', (evt) => {
+        const name = handlerOrName as string
+        const wsListener = (evt: MessageEvent) => {
           const msg = JSON.parse(evt.data)
           if (msg.event === 'setItem' && msg.payload.prop === name) maybeDecryptAndHandle(msg, hndl)
-        })
+        }
+        ws.addEventListener('message', wsListener)
+        eventSet.add({ handler: hndl, wsListener, itemName: name })
       }
     }
 
@@ -325,19 +346,185 @@ export default class WebSocketFunctions extends Base {
       if (typeof handler === 'undefined') {
         if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
         const hndl = handlerOrName as (prop: { prop: string }) => void
-        ws.addEventListener('message', (evt) => {
+        const wsListener = (evt: MessageEvent) => {
           const msg = JSON.parse(evt.data)
           if (msg.event === 'removeItem') hndl(msg.payload)
-        })
+        }
+        ws.addEventListener('message', wsListener)
+        eventSet.add({ handler: hndl, wsListener })
       } else {
         if (typeof handler !== 'function') throw new Error('No event handler defined!')
         const hndl = handler as (prop: { prop: string }) => void
-        const name = handlerOrName
-        ws.addEventListener('message', (evt) => {
+        const name = handlerOrName as string
+        const wsListener = (evt: MessageEvent) => {
           const msg = JSON.parse(evt.data)
           if (msg.event === 'removeItem' && msg.payload.prop === name) hndl(msg.payload)
-        })
+        }
+        ws.addEventListener('message', wsListener)
+        eventSet.add({ handler: hndl, wsListener, itemName: name })
       }
+    }
+  }
+
+  /**
+   * Remove an event handler for WebSocket connection events.
+   * @param event - The 'connect' event name.
+   * @param handler - Function to remove.
+   */
+  off (event: 'connect', handler: () => void): any
+  /**
+   * Remove an event handler for WebSocket disconnection events.
+   * @param event - The 'disconnect' event name.
+   * @param handler - Function to remove.
+   */
+  off (event: 'disconnect', handler: () => void): any
+  /**
+   * Remove an event handler for presence join events.
+   * @param event - The 'presence:join' event name.
+   * @param handler - Function to remove.
+   */
+  off (event: 'presence:join', handler: (joinedConnection: JoinedConnection) => void): any
+  /**
+   * Remove an event handler for presence leave events.
+   * @param event - The 'presence:leave' event name.
+   * @param handler - Function to remove.
+   */
+  off (event: 'presence:leave', handler: (leavedConnection: LeavedConnection) => void): any
+  /**
+   * Remove an event handler for incoming messages.
+   * @param event - The 'message' event name.
+   * @param handler - Function to remove.
+   */
+  off (event: 'message', handler: (data: JSONObj) => void): any
+  /**
+   * Remove an event handler for WebSocket errors.
+   * @param event - The 'error' event name.
+   * @param handler - Function to remove.
+   */
+  off (event: 'error', handler: (error: Error) => void): any
+  /**
+   * Remove an event handler for all setItem events.
+   * @param event - The 'setItem' event name.
+   * @param handler - Function to remove.
+   */
+  off (event: 'setItem', handler: (item: ItemType & { prop: string }) => void): any
+  /**
+   * Remove an event handler for specific setItem events.
+   * @param event - The 'setItem' event name.
+   * @param name - The specific item name.
+   * @param handler - Function to remove.
+   */
+  off (event: 'setItem', name: string, handler: (item: ItemType & { prop: string }) => void): any
+  /**
+   * Remove an event handler for all removeItem events.
+   * @param event - The 'removeItem' event name.
+   * @param handler - Function to remove.
+   */
+  off (event: 'removeItem', handler: (item: { prop: string }) => void): any
+  /**
+   * Remove an event handler for specific removeItem events.
+   * @param event - The 'removeItem' event name.
+   * @param name - The specific item name.
+   * @param handler - Function to remove.
+   */
+  off (event: 'removeItem', name: string, handler: (item: { prop: string }) => void): any
+  /**
+   * Remove event handlers for various WebSocket events.
+   *
+   * @param event - The event name to stop listening for.
+   * @param handlerOrName - Either an event handler function or a specific item name.
+   * @param handler - Optional handler function when handlerOrName is a string.
+   *
+   * @remarks
+   * Removes previously registered event listeners. This properly cleans up
+   * all event types including message-based events by maintaining an internal
+   * registry of handlers and their corresponding WebSocket listeners.
+   *
+   * @example
+   * ```typescript
+   * const connectHandler = () => console.log('Connected!');
+   * instance.on('connect', connectHandler);
+   * // Later, remove the handler
+   * instance.off('connect', connectHandler);
+   *
+   * const itemHandler = (item) => console.log('Item changed:', item);
+   * instance.on('setItem', 'username', itemHandler);
+   * // Remove specific item handler
+   * instance.off('setItem', 'username', itemHandler);
+   * ```
+   */
+  off (
+    event: string,
+    handlerOrName: ((item: ItemType & { prop: string }) => void) | ((name: string) => void) | (() => void) | ((error: Error) => void) | ((data: JSONObj) => void) | ((joinedConnection: JoinedConnection) => void) | ((leavedConnection: LeavedConnection) => void) | string,
+    handler?: ((item: ItemType & { prop: string }) => void) | (() => void) | ((name: string) => void) | ((error: Error) => void) | ((data: JSONObj) => void)
+  ) {
+    const eventSet = this[EVENT_HANDLERS].get(event)
+    if (!eventSet) return
+
+    if (event === 'error') {
+      if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
+      const hndl = handlerOrName as (e: Error) => void
+
+      // Remove from error handlers array
+      const index = this[ERROR_HANDLERS].indexOf(hndl)
+      if (index > -1) {
+        this[ERROR_HANDLERS].splice(index, 1)
+      }
+
+      // Find and remove from registry
+      for (const entry of eventSet) {
+        if (entry.handler === hndl) {
+          if (this[WEBSOCKET] && entry.wsListener) {
+            this[WEBSOCKET].removeEventListener('error', entry.wsListener as EventListener)
+          }
+          eventSet.delete(entry)
+          break
+        }
+      }
+    } else {
+      // For all other events
+      if (!this[WEBSOCKET]) return
+      const ws = this[WEBSOCKET]
+
+      // Determine the target handler and item name (if applicable)
+      let targetHandler: Function
+      let targetItemName: string | undefined
+
+      if (typeof handler === 'undefined') {
+        if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
+        targetHandler = handlerOrName
+      } else {
+        if (typeof handler !== 'function') throw new Error('No event handler defined!')
+        targetHandler = handler
+        targetItemName = handlerOrName as string
+      }
+
+      // Find matching entry in registry
+      for (const entry of eventSet) {
+        const handlerMatches = entry.handler === targetHandler
+        const itemNameMatches = targetItemName === undefined || entry.itemName === targetItemName
+
+        if (handlerMatches && itemNameMatches) {
+          // Remove WebSocket listener
+          if (entry.wsListener) {
+            const wsEventName = event === 'connect'
+              ? 'open'
+              : event === 'disconnect'
+                ? 'close'
+                : event === 'error' ? 'error' : 'message'
+            ws.removeEventListener(wsEventName, entry.wsListener as EventListener)
+          }
+
+          // Remove from registry
+          eventSet.delete(entry)
+          break
+        }
+      }
+    }
+
+    // Clean up empty event sets
+    if (eventSet.size === 0) {
+      this[EVENT_HANDLERS].delete(event)
     }
   }
 
@@ -347,7 +534,7 @@ export default class WebSocketFunctions extends Base {
    * @remarks
    * If the instance has joined the presence channel, it will automatically
    * leave before disconnecting. This ensures proper cleanup and notifies
-   * other clients of the departure.
+   * other clients of the departure. All event handlers are also cleaned up.
    */
   disconnect () {
     if (!this[WEBSOCKET]) return
@@ -356,6 +543,10 @@ export default class WebSocketFunctions extends Base {
     }
     this[WEBSOCKET].close()
     delete this[WEBSOCKET]
+
+    // Clear all event handlers
+    this[EVENT_HANDLERS].clear()
+    this[ERROR_HANDLERS].length = 0
   }
 
   /**

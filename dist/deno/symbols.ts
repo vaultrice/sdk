@@ -33,3 +33,9 @@ export const ERROR_HANDLERS = Symbol('vaultrice/errorHandlers')
  * @internal
  */
 export const WEBSOCKET = Symbol('vaultrice/ws')
+
+/**
+ * Symbol for storing event handler callbacks privately within WebSocketFunctions class instances.
+ * @internal
+ */
+export const EVENT_HANDLERS = Symbol('vaultrice/eventHandlers')
