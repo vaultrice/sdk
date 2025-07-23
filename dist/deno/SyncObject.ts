@@ -2,7 +2,8 @@ import NonLocalStorage from './NonLocalStorage.ts'
 import {
   ItemType,
   InstanceOptions,
-  SyncObjectMeta
+  SyncObjectMeta,
+  JoinedConnections
 } from './types'
 
 /**
@@ -28,9 +29,44 @@ export default async function createSyncObject<T extends object> (
   const ttl = (nls as any).ttl || 60 * 60 * 1000
 
   const store: Partial<T> = {}
+  let joinedConnections: JoinedConnections = []
 
   if ((nls as any).getEncryptionHandler) await nls.getEncryptionSettings()
 
+  // Wait for WebSocket connection to be established before proceeding
+  const connectedPromise = new Promise<void>((resolve, reject) => {
+    // Get the WebSocket to trigger connection
+    const ws = nls.getWebSocket()
+
+    // Check if already connected
+    if (ws.readyState === WebSocket.OPEN) {
+      resolve()
+      return
+    }
+
+    const timeout = setTimeout(() => {
+      reject(new Error('WebSocket connection timeout after 10 seconds'))
+    }, 10000) // 10 second timeout
+
+    const connectHandler = () => {
+      clearTimeout(timeout)
+      nls.off('connect', connectHandler)
+      nls.off('error', errorHandler)
+      resolve()
+    }
+
+    const errorHandler = (error: Error) => {
+      clearTimeout(timeout)
+      nls.off('connect', connectHandler)
+      nls.off('error', errorHandler)
+      reject(error)
+    }
+
+    nls.on('connect', connectHandler)
+    nls.on('error', errorHandler)
+  })
+
+  // Set up event listeners after waiting for connection
   nls.on('setItem', (item) => {
     (store as any)[item.prop] = {
       ...item
@@ -42,6 +78,24 @@ export default async function createSyncObject<T extends object> (
     delete (store as any)[item.prop]
   })
 
+  // Handle presence events to update joinedConnections
+  nls.on('presence:join', (joinedConnection) => {
+    // Add or update the connection
+    const existingIndex = joinedConnections.findIndex(c => c.connectionId === joinedConnection.connectionId)
+    if (existingIndex >= 0) {
+      joinedConnections[existingIndex] = joinedConnection
+    } else {
+      joinedConnections.push(joinedConnection)
+    }
+  })
+
+  nls.on('presence:leave', (leavedConnection) => {
+    // Remove the connection
+    joinedConnections = joinedConnections.filter(c => c.connectionId !== leavedConnection.connectionId)
+  })
+
+  await connectedPromise
+
   const items = await nls.getAllItems()
   if (items) {
     Object.keys(items).forEach((k) => {
@@ -49,14 +103,35 @@ export default async function createSyncObject<T extends object> (
     })
   }
 
-  // Create bound functions once and reuse them
+  // Initialize joinedConnections now that WebSocket is connected
+  try {
+    joinedConnections = await nls.getJoinedConnections()
+  } catch (e) {
+    // Ignore errors when getting initial connections
+    joinedConnections = []
+  }
+
+  // Create bound functions - regular join/leave without local state management
   const boundOn = nls.on.bind(nls)
   const boundOff = nls.off.bind(nls)
+  const boundSend = nls.send.bind(nls)
+  const boundJoin = nls.join.bind(nls)
+  const boundLeave = nls.leave.bind(nls)
+
+  const reservedProps = [
+    'id',
+    'on',
+    'off',
+    'join',
+    'leave',
+    'send',
+    'joinedConnections'
+  ]
 
   const handler: ProxyHandler<T & SyncObjectMeta> = {
     set (_, prop: string, value) {
       // Prevent overwriting special properties
-      if (prop === 'id' || prop === 'on' || prop === 'off') {
+      if (reservedProps.indexOf(prop) > -1) {
         throw new Error(`Cannot set property '${prop}' - it is a reserved property`)
       }
 
@@ -74,6 +149,10 @@ export default async function createSyncObject<T extends object> (
       if (prop === 'id') return nls.id
       if (prop === 'on') return boundOn
       if (prop === 'off') return boundOff
+      if (prop === 'join') return boundJoin
+      if (prop === 'leave') return boundLeave
+      if (prop === 'send') return boundSend
+      if (prop === 'joinedConnections') return joinedConnections
 
       const item = (store as any)[prop] as ItemType
       if (!item) return undefined
@@ -85,7 +164,7 @@ export default async function createSyncObject<T extends object> (
     },
     has (_, prop: string | symbol) {
       // Make sure special properties are always considered as existing
-      if (prop === 'id' || prop === 'on' || prop === 'off') return true
+      if (reservedProps.indexOf(prop as string) > -1) return true
 
       const item = (store as any)[prop] as ItemType
       if (!item) return false
@@ -115,18 +194,9 @@ export default async function createSyncObject<T extends object> (
       return Array.from(allKeys)
     },
     getOwnPropertyDescriptor (_, prop: string | symbol) {
-      // Define special properties as non-configurable and non-writable
-      if (prop === 'id' || prop === 'on' || prop === 'off') {
-        return {
-          configurable: false,
-          enumerable: true, // Make them enumerable so they appear in Object.keys()
-          writable: false,
-          value: prop === 'id'
-            ? nls.id
-            : prop === 'on'
-              ? boundOn
-              : boundOff
-        }
+      // For reserved properties, delegate to the base object to ensure consistency
+      if (reservedProps.indexOf(prop as string) > -1) {
+        return Reflect.getOwnPropertyDescriptor(_, prop)
       }
 
       const item = (store as any)[prop] as ItemType
@@ -146,28 +216,55 @@ export default async function createSyncObject<T extends object> (
   }
 
   // Create a base object with properly defined special properties using the same bound functions
-  const base = { id: nls.id } as SyncObjectMeta
+  const base = {} as SyncObjectMeta
 
   // Define special properties on the base object to match the proxy descriptor
   Object.defineProperty(base, 'id', {
     configurable: false,
-    enumerable: true, // Match the proxy descriptor
+    enumerable: true,
     writable: false,
     value: nls.id
   })
 
   Object.defineProperty(base, 'on', {
     configurable: false,
-    enumerable: true, // Match the proxy descriptor
+    enumerable: true,
     writable: false,
     value: boundOn
   })
 
   Object.defineProperty(base, 'off', {
     configurable: false,
-    enumerable: true, // Match the proxy descriptor
+    enumerable: true,
     writable: false,
     value: boundOff
+  })
+
+  Object.defineProperty(base, 'join', {
+    configurable: false,
+    enumerable: true,
+    writable: false,
+    value: boundJoin
+  })
+
+  Object.defineProperty(base, 'leave', {
+    configurable: false,
+    enumerable: true,
+    writable: false,
+    value: boundLeave
+  })
+
+  Object.defineProperty(base, 'send', {
+    configurable: false,
+    enumerable: true,
+    writable: false,
+    value: boundSend
+  })
+
+  Object.defineProperty(base, 'joinedConnections', {
+    configurable: false,
+    enumerable: true,
+    get: () => joinedConnections
   })
 
   // cast the Proxy to T & SyncObjectMeta

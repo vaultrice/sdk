@@ -202,7 +202,7 @@ userPrefs.theme = 'dark' // Fully typed!
 
 ### SyncObject Event Handling
 
-SyncObjects expose a limited set of events through `on` and `off` methods:
+SyncObjects now expose the full event system through `on` and `off` methods:
 
 ```ts
 const syncObj = await createSyncObject({ apiKey, apiSecret, projectId }, 'room-id')
@@ -227,6 +227,24 @@ syncObj.on('removeItem', (item) => {
 syncObj.on('connect', () => console.log('Connected to real-time sync'))
 syncObj.on('disconnect', () => console.log('Disconnected'))
 
+// Listen for presence events
+syncObj.on('presence:join', (connection) => {
+  console.log(`${connection.data.name} joined`)
+  showUserAvatar(connection.data)
+})
+
+syncObj.on('presence:leave', (connection) => {
+  console.log(`${connection.data.name} left`)
+  hideUserAvatar(connection.connectionId)
+})
+
+// Listen for messages
+syncObj.on('message', (msg) => {
+  if (msg.type === 'cursor-move') {
+    updateCursor(msg.userId, msg.position)
+  }
+})
+
 // Listen for errors
 syncObj.on('error', (error) => console.error('Sync error:', error))
 
@@ -236,24 +254,42 @@ syncObj.on('setItem', 'theme', themeHandler)
 syncObj.off('setItem', 'theme', themeHandler) // Remove specific handler
 ```
 
-**Note:** SyncObjects only support connection, error, and data change events (`setItem`, `removeItem`). For presence awareness and custom messaging, use the full NonLocalStorage API.
+### SyncObject Presence & Messaging
 
-### SyncObject with Encryption
+SyncObjects now include built-in presence awareness and real-time messaging:
 
 ```ts
-const encryptedSync = await createSyncObject(credentials, {
-  id: 'private-notes',
-  passphrase: 'my-secret-passphrase'
+const collabDoc = await createSyncObject({ apiKey, apiSecret, projectId }, 'doc-123')
+
+// Join presence with user info
+await collabDoc.join({ 
+  userId: 'user-123', 
+  name: 'Alice',
+  avatar: 'avatar1.png',
+  cursor: { x: 0, y: 0 }
 })
 
-// All properties are automatically encrypted
-encryptedSync.secretNote = 'This is encrypted end-to-end'
-encryptedSync.apiKey = 'sk-1234567890abcdef'
-
-// Events work the same way (data is decrypted automatically)
-encryptedSync.on('setItem', (item) => {
-  console.log('Decrypted value:', item.value) // Already decrypted!
+// Access live list of connected users
+console.log(`${collabDoc.joinedConnections.length} users online`)
+collabDoc.joinedConnections.forEach(user => {
+  console.log(`${user.data.name} joined at ${new Date(user.joinedAt)}`)
 })
+
+// Send real-time messages
+await collabDoc.send({
+  type: 'cursor-move',
+  userId: 'user-123',
+  position: { x: 150, y: 300 }
+})
+
+// Send via HTTP fallback instead of WebSocket
+await collabDoc.send({ 
+  type: 'important-notification',
+  message: 'Document saved successfully'
+}, { transport: 'http' })
+
+// Leave presence (also automatic on disconnect)
+await collabDoc.leave()
 ```
 
 ### SyncObject Features Summary
@@ -262,9 +298,11 @@ encryptedSync.on('setItem', (item) => {
 |---------|-------------|
 | **Automatic Sync** | Properties sync instantly across all connected clients |
 | **Type Safety** | Full TypeScript support with custom interfaces |
-| **Event System** | Listen for property changes and connection events |
+| **Event System** | Complete event system including presence and messaging |
+| **Presence Aware** | Know who's online with `joinedConnections` property |
+| **Real-time Messaging** | Send and receive custom messages between clients |
 | **Encryption Ready** | Optional end-to-end encryption for sensitive data |
-| **Protected Properties** | `id`, `on`, and `off` are read-only and cannot be overwritten |
+| **Protected Properties** | Reserved properties are read-only and cannot be overwritten |
 | **TTL Support** | Properties can expire automatically |
 | **Cross-Platform** | Works in browsers, Node.js, React Native, etc. |
 
@@ -273,146 +311,208 @@ encryptedSync.on('setItem', (item) => {
 **Use SyncObject when:**
 - You want an object-like interface with property assignment
 - You need automatic synchronization of object properties
+- You want presence awareness with minimal setup
 - You prefer reactive programming patterns
-- You're building simple state synchronization
+- You're building collaborative applications
 
 **Use NonLocalStorage when:**
-- You need presence awareness (join/leave events)
-- You want to send custom messages between clients
-- You need the full event system (presence:join, presence:leave, message)
+- You need fine-grained control over storage operations
 - You prefer explicit method calls (setItem, getItem, etc.)
-- You're building real-time collaboration features
-
----
-
-## 🧠 Tips & Notes
-
-* **Cross-tab sync**: uses WebSocket broadcasts to update all connected clients.
-* **Cross-domain support**: great for multi-brand or multi-site applications.
-* **SyncObject limitations**: No presence events or custom messaging. Use NonLocalStorage for these features.
-* **Event cleanup**: Always remove event listeners with `off()` to prevent memory leaks.
-* **Per-item TTLs** can be optionally added in future.
-* **E2EE** means even the server can't read your data.
-* **Presence data**: Available only with NonLocalStorage, not SyncObject.
-
----
-
-## 📌 Comparing with `localStorage`
-
-| Feature                   | `localStorage` | `NonLocalStorage` | `SyncObject` |
-| ------------------------- | -------------- | --------------- | ------------ |
-| Cross-tab/browser/device  | 🚫             | ✅               | ✅            |
-| Cross-domain              | 🚫             | ✅               | ✅            |
-| Server-side access        | 🚫             | ✅               | ✅            |
-| Real-time sync            | 🚫             | ✅               | ✅            |
-| E2E encryption            | 🚫             | ✅               | ✅            |
-| Data TTL                  | 🚫             | ✅               | ✅            |
-| Event system              | 🚫             | ✅               | ✅ (limited)   |
-| Object-like interface     | 🚫             | 🚫               | ✅            |
-| Presence awareness        | 🚫             | ✅               | 🚫            |
-| Custom messaging          | 🚫             | ✅               | 🚫            |
-| Type safety               | 🚫             | ✅               | ✅            |
+- You're building complex real-time architectures
+- You need advanced features like atomic increment/decrement
+- You want to separate storage from presence/messaging logic
 
 ---
 
 ## 🚀 Real-World Examples
 
-### Simple Settings Sync with SyncObject
-
-```ts
-interface AppSettings {
-  theme?: 'light' | 'dark'
-  language?: string
-  notifications?: boolean
-}
-
-const settings = await createSyncObject<AppSettings>(credentials, 'user-settings')
-
-// Sync theme across all tabs
-settings.on('setItem', 'theme', (item) => {
-  document.body.className = `theme-${item.value}`
-})
-
-// Update from UI
-themeToggle.onclick = () => {
-  settings.theme = settings.theme === 'light' ? 'dark' : 'light'
-}
-```
-
-### Collaborative Editor with NonLocalStorage (Full Features)
+### Collaborative Text Editor (Full SyncObject)
 
 ```ts
 interface DocumentState {
   content?: string
   title?: string
   lastModified?: number
+  selectedText?: { start: number, end: number }
 }
 
-// Use NonLocalStorage for presence and messaging
-const nls = new NonLocalStorage(credentials, 'doc-123')
+const doc = await createSyncObject<DocumentState>(credentials, 'doc-123')
 
-// Set up the document state
-await nls.setItem('content', '')
-await nls.setItem('title', 'Untitled Document')
+// Join as a user
+await doc.join({ 
+  userId: 'user-123', 
+  name: 'Alice',
+  avatar: 'avatar1.png',
+  role: 'editor'
+})
 
-// Listen for content changes
-nls.on('setItem', 'content', async (item) => {
+// Real-time collaborative editing
+doc.on('setItem', 'content', (item) => {
   if (item.value !== editor.getText()) {
     editor.setText(item.value) // Update editor with remote changes
   }
 })
 
 // Auto-save on edit
-editor.on('text-change', async () => {
-  await nls.setItem('content', editor.getText())
-  await nls.setItem('lastModified', Date.now())
+editor.on('text-change', () => {
+  doc.content = editor.getText()
+  doc.lastModified = Date.now()
 })
 
-// Show who's editing (presence awareness)
-await nls.join({ userId: 'user-123', name: 'Alice' })
-
-nls.on('presence:join', (conn) => {
+// Show who's editing
+doc.on('presence:join', (conn) => {
   showActiveUser(conn.data)
+  showNotification(`${conn.data.name} joined the document`)
 })
 
-nls.on('presence:leave', (conn) => {
+doc.on('presence:leave', (conn) => {
   hideActiveUser(conn.connectionId)
+  showNotification(`${conn.data.name} left the document`)
 })
 
-// Real-time cursor positions
-nls.on('message', (msg) => {
-  if (msg.type === 'cursor') {
+// Real-time cursor sharing
+doc.on('message', (msg) => {
+  if (msg.type === 'cursor-move') {
     updateCursor(msg.userId, msg.position)
+  } else if (msg.type === 'selection') {
+    showSelection(msg.userId, msg.range)
   }
 })
 
 // Send cursor updates
 editor.on('cursor-move', (position) => {
-  nls.send({ type: 'cursor', userId: 'user-123', position })
+  doc.send({ 
+    type: 'cursor-move', 
+    userId: 'user-123', 
+    position,
+    timestamp: Date.now()
+  })
 })
+
+// Send text selection updates
+editor.on('selection-change', (range) => {
+  doc.send({ 
+    type: 'selection', 
+    userId: 'user-123', 
+    range,
+    timestamp: Date.now()
+  })
+})
+
+// Show live user count
+const updateUserCount = () => {
+  userCountElement.textContent = `${doc.joinedConnections.length} users online`
+}
+doc.on('presence:join', updateUserCount)
+doc.on('presence:leave', updateUserCount)
+updateUserCount() // Initial count
 ```
 
-### Simple Game State with SyncObject
+### Real-Time Gaming with SyncObject
 
 ```ts
 interface GameState {
-  score?: number
-  level?: number
-  playerName?: string
+  players?: { [id: string]: { x: number, y: number, score: number, health: number } }
+  gameStatus?: 'waiting' | 'playing' | 'finished'
+  currentRound?: number
 }
 
-const game = await createSyncObject<GameState>(credentials, 'game-session')
+const game = await createSyncObject<GameState>(credentials, 'game-room-456')
 
-// Listen for score updates
-game.on('setItem', 'score', (item) => {
-  updateScoreDisplay(item.value)
+// Join as player
+await game.join({ 
+  playerId: 'player-123', 
+  name: 'Alice',
+  character: 'warrior',
+  level: 15
 })
 
-// Update score
-function addScore(points: number) {
-  game.score = (game.score || 0) + points
+// Initialize game state
+if (!game.gameStatus) {
+  game.gameStatus = 'waiting'
+  game.players = {}
+  game.currentRound = 1
 }
+
+// Update player position
+function movePlayer(x: number, y: number) {
+  if (!game.players) game.players = {}
+  game.players = {
+    ...game.players,
+    'player-123': { 
+      ...(game.players['player-123'] || { score: 0, health: 100 }),
+      x, 
+      y 
+    }
+  }
+}
+
+// Listen for game state changes
+game.on('setItem', 'players', (item) => {
+  updateGameBoard(item.value)
+})
+
+game.on('setItem', 'gameStatus', (item) => {
+  if (item.value === 'playing') {
+    startGameLoop()
+  } else if (item.value === 'finished') {
+    showGameResults()
+  }
+})
+
+// Handle player actions via messaging
+game.on('message', (msg) => {
+  switch (msg.type) {
+    case 'attack':
+      handleAttack(msg.from, msg.target, msg.damage)
+      break
+    case 'power-up':
+      handlePowerUp(msg.playerId, msg.powerUpType)
+      break
+    case 'chat':
+      showChatMessage(msg.from, msg.message)
+      break
+  }
+})
+
+// Send attack action
+function attack(targetPlayerId: string, damage: number) {
+  game.send({
+    type: 'attack',
+    from: 'player-123',
+    target: targetPlayerId,
+    damage,
+    timestamp: Date.now()
+  })
+}
+
+// Show live player list
+game.on('presence:join', (conn) => {
+  addPlayerToLobby(conn.data)
+})
+
+game.on('presence:leave', (conn) => {
+  removePlayerFromLobby(conn.connectionId)
+  
+  // Remove from game state too
+  if (game.players && game.players[conn.data.playerId]) {
+    const updatedPlayers = { ...game.players }
+    delete updatedPlayers[conn.data.playerId]
+    game.players = updatedPlayers
+  }
+})
 ```
+
+The key improvements with this implementation:
+
+1. **Full Feature Parity**: SyncObject now has all the capabilities of NonLocalStorage
+2. **Automatic Presence Management**: `joinedConnections` is automatically updated via events
+3. **Simplified API**: Direct method access (`obj.join()`, `obj.send()`) instead of going through the underlying NLS instance
+4. **Protected Properties**: All reserved properties are properly protected
+5. **Live Updates**: The `joinedConnections` property updates in real-time as users join/leave
+6. **Type Safety**: Full TypeScript support for all new methods and properties
+
+This makes SyncObject a complete solution for real-time collaborative applications while maintaining the simple object-like interface that makes it appealing.
 
 ---
 

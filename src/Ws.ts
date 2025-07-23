@@ -223,7 +223,16 @@ export default class WebSocketFunctions extends Base {
       if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
       const hndl = handlerOrName as (e: Error) => void
       this[ERROR_HANDLERS].push(hndl)
-      const wsListener = (evt: any) => hndl(new Error(evt?.message))
+      const wsListener = (evt: any) => {
+        // Handle cases where evt might not have a message property or is undefined
+        try {
+          const errorMessage = evt?.message || evt?.data || evt?.type || (typeof evt === 'string' ? evt : 'WebSocket error occurred')
+          hndl(new Error(errorMessage))
+        } catch (e) {
+          // Fallback if something goes wrong with error handling
+          hndl(new Error('WebSocket error occurred'))
+        }
+      }
       ws.addEventListener('error', wsListener)
       eventSet.add({ handler: hndl, wsListener })
     }
