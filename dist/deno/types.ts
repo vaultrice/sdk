@@ -137,9 +137,9 @@ export interface SyncObjectMeta {
   readonly on: {
     (event: 'connect', handler: () => void): any
     (event: 'disconnect', handler: () => void): any
-    (event: 'presence:join', handler: (joinedConnection: JoinedConnection) => void): any
-    (event: 'presence:leave', handler: (leavedConnection: LeavedConnection) => void): any
-    (event: 'message', handler: (data: JSONObj) => void): any
+    // (event: 'presence:join', handler: (joinedConnection: JoinedConnection) => void): any
+    // (event: 'presence:leave', handler: (leavedConnection: LeavedConnection) => void): any
+    // (event: 'message', handler: (data: JSONObj) => void): any
     (event: 'error', handler: (error: Error) => void): any
     (event: 'setItem', handler: (item: ItemType & { prop: string }) => void): any
     (event: 'setItem', name: string, handler: (item: ItemType & { prop: string }) => void): any
@@ -154,9 +154,9 @@ export interface SyncObjectMeta {
   readonly off: {
     (event: 'connect', handler: () => void): any
     (event: 'disconnect', handler: () => void): any
-    (event: 'presence:join', handler: (joinedConnection: JoinedConnection) => void): any
-    (event: 'presence:leave', handler: (leavedConnection: LeavedConnection) => void): any
-    (event: 'message', handler: (data: JSONObj) => void): any
+    // (event: 'presence:join', handler: (joinedConnection: JoinedConnection) => void): any
+    // (event: 'presence:leave', handler: (leavedConnection: LeavedConnection) => void): any
+    // (event: 'message', handler: (data: JSONObj) => void): any
     (event: 'error', handler: (error: Error) => void): any
     (event: 'setItem', handler: (item: ItemType & { prop: string }) => void): any
     (event: 'setItem', name: string, handler: (item: ItemType & { prop: string }) => void): any
