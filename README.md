@@ -1,8 +1,8 @@
-# NonLocalStorage JS/TS SDK
+# Vaultrice JS/TS SDK
 
 A secure, real-time, cloud-based storage SDK with a familiar `localStorage`-like API — enhanced for cross-device, cross-domain sync, and optional end-to-end encryption.
 
-> NonLocalStorage is ideal for state sharing between tabs, browsers, devices, or domains — with built-in real-time updates and optional encryption.
+> Vaultrice is ideal for state sharing between tabs, browsers, devices, or domains — with built-in real-time updates and optional encryption.
 
 ---
 
