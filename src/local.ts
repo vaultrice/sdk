@@ -6,27 +6,18 @@ const LOCAL_ID_NAME = 'NON_LOCAL_STORAGE_LOCAL_ID'
 
 /**
  * Retrieve the persisted instance ID from browser localStorage.
- *
+ * @param projectId
+ * @param className
  * @returns The stored instance ID, or null if not found or localStorage unavailable.
  *
  * @remarks
  * This function safely checks for browser environment and localStorage availability
  * before attempting to retrieve the stored ID. Returns null in Node.js environments
  * or when localStorage is not supported.
- *
- * @example
- * ```typescript
- * const storedId = getLocalId();
- * if (storedId) {
- *   console.log('Found existing ID:', storedId);
- * } else {
- *   console.log('No stored ID found');
- * }
- * ```
  */
-export const getLocalId = (): string | null => {
+export const getLocalId = (projectId: string, className: string): string | null => {
   if (typeof window !== 'undefined' && window.localStorage) {
-    return window.localStorage.getItem(LOCAL_ID_NAME)
+    return window.localStorage.getItem(`${LOCAL_ID_NAME}:${projectId}:${className}`)
   }
   return null
 }
@@ -34,6 +25,8 @@ export const getLocalId = (): string | null => {
 /**
  * Persist an instance ID to browser localStorage for future sessions.
  *
+ * @param projectId
+ * @param className
  * @param id - The instance ID to store locally.
  *
  * @remarks
@@ -43,16 +36,9 @@ export const getLocalId = (): string | null => {
  *
  * The stored ID allows instances to maintain the same identifier across
  * browser sessions, enabling data persistence and continuity.
- *
- * @example
- * ```typescript
- * const newId = 'user-123-session-456';
- * setLocalId(newId);
- * // ID will be available in future sessions via getLocalId()
- * ```
  */
-export const setLocalId = (id: string) => {
+export const setLocalId = (projectId: string, className: string, id: string) => {
   if (typeof window !== 'undefined' && window.localStorage) {
-    window.localStorage.setItem(LOCAL_ID_NAME, id)
+    window.localStorage.setItem(`${LOCAL_ID_NAME}:${projectId}:${className}`, id)
   }
 }

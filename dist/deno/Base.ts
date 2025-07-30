@@ -8,12 +8,14 @@ import { CREDENTIALS, ENCRYPTION_SETTINGS, PREVIOUS_ENCRYPTION_SETTINGS } from '
 
 /**
  * Generate a unique ID for an instance.
+ * @param projectId
+ * @param className
  * @internal
  * @returns A UUID-based string ID.
  */
-function getId () {
+function getId (projectId: string, className: string) {
   // if no id provided, try to check if there is one in the real local storage...
-  const localId = getLocalId()
+  const localId = getLocalId(projectId, className)
   if (localId) return localId
   // if not, generate a new id...
   return `${uuidv4()}-${uuidv4()}`
@@ -137,14 +139,14 @@ export default class Base {
       apiSecret: string,
       projectId: string
     },
-    idOrOptions: string | InstanceOptions | undefined = { id: getId(), class: DEFAULT_DURABLE_CACHE_CLASS, autoUpdateOldEncryptedValues: true, logLevel: 'warn' }
+    idOrOptions: string | InstanceOptions | undefined = { class: DEFAULT_DURABLE_CACHE_CLASS, autoUpdateOldEncryptedValues: true, logLevel: 'warn' }
   ) {
     let options: InstanceOptions = { class: DEFAULT_DURABLE_CACHE_CLASS, logLevel: 'warn' }
     if (typeof idOrOptions === 'string') {
       this.id = idOrOptions
       options = { class: DEFAULT_DURABLE_CACHE_CLASS, logLevel: 'warn' }
     } else {
-      this.id = idOrOptions.id || getId()
+      this.id = idOrOptions.id || getId(credentials.projectId, idOrOptions.class || DEFAULT_DURABLE_CACHE_CLASS)
       options = idOrOptions
     }
 
@@ -158,8 +160,10 @@ export default class Base {
       throw new Error('Invalid credentials!')
     }
 
-    // try to save that id locally
-    setLocalId(this.id as string)
+    if (typeof idOrOptions !== 'string' && !idOrOptions?.id) {
+      // try to save that id locally
+      setLocalId(credentials.projectId, idOrOptions.class || DEFAULT_DURABLE_CACHE_CLASS, this.id as string)
+    }
 
     this[CREDENTIALS] = credentials
 
