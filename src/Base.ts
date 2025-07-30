@@ -137,7 +137,7 @@ export default class Base {
       apiSecret: string,
       projectId: string
     },
-    idOrOptions: string | InstanceOptions | undefined = { id: getId(), class: DEFAULT_DURABLE_CACHE_CLASS, autoUpdateOldEncryptedValues: true, logLevel: 'warn' }
+    idOrOptions: string | InstanceOptions | undefined = { class: DEFAULT_DURABLE_CACHE_CLASS, autoUpdateOldEncryptedValues: true, logLevel: 'warn' }
   ) {
     let options: InstanceOptions = { class: DEFAULT_DURABLE_CACHE_CLASS, logLevel: 'warn' }
     if (typeof idOrOptions === 'string') {
@@ -158,8 +158,10 @@ export default class Base {
       throw new Error('Invalid credentials!')
     }
 
-    // try to save that id locally
-    setLocalId(this.id as string)
+    if (typeof idOrOptions !== 'string' && !idOrOptions?.id) {
+      // try to save that id locally
+      setLocalId(this.id as string)
+    }
 
     this[CREDENTIALS] = credentials
 
