@@ -32,7 +32,7 @@
     "docs": "typedoc",
     "serve-docs": "http-server docs -o"
   },
-  "author": "",
+  "author": "The Vaultrice Team <support@vaultrice.com>",
   "license": "MIT",
   "devDependencies": {
     "@rollup/plugin-terser": "0.4.4",
@@ -48,5 +48,22 @@
     "typedoc": "0.28.9",
     "typescript": "5.9.2",
     "vitest": "3.2.4"
+  },
+  "keywords": [
+    "vaultrice",
+    "storage",
+    "encryption",
+    "real-time",
+    "key-value",
+    "persistent",
+    "websocket"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vaultrice/sdk.git"
+  },
+  "homepage": "https://www.vaultrice.com",
+  "bugs": {
+    "url": "https://github.com/vaultrice/sdk/issues"
   }
 }
