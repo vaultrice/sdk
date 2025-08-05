@@ -2,7 +2,7 @@
   "name": "@vaultrice/sdk",
   "description": "A TypeScript/JavaScript SDK for Vaultrice - persistent, encrypted, real-time key-value storage",
   "globalName": "Vaultrice",
-  "version": "0.9.0",
+  "version": "0.8.0",
   "type": "module",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
@@ -30,7 +30,9 @@
     "test:integration:local": "vitest --mode integration-local",
     "test:integration:dev": "vitest --mode integration-dev",
     "docs": "typedoc",
-    "serve-docs": "http-server docs -o"
+    "serve-docs": "http-server docs -o",
+    "preversion": "npm run test && npm run build && npm run docs && git push",
+    "postversion": "git push && git push --tags"
   },
   "author": "The Vaultrice Team <support@vaultrice.com>",
   "license": "MIT",
