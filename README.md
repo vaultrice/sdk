@@ -1,5 +1,8 @@
 # Vaultrice JS/TS SDK
 
+[![Tests](https://github.com/vaultrice/sdk/workflows/node/badge.svg)](https://github.com/vaultrice/sdk/actions?query=workflow%3Anode)
+[![npm version](https://img.shields.io/npm/v/@vaultrice/sdk.svg?style=flat-square)](https://www.npmjs.com/package/@vaultrice/sdk)
+
 A secure, real-time, cloud-based storage SDK with a familiar `localStorage`-like API — enhanced for cross-device, cross-domain sync, and optional end-to-end encryption.
 
 > Vaultrice is ideal for state sharing between tabs, browsers, devices, or domains — with built-in real-time updates and optional encryption.
