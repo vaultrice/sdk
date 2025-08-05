@@ -33,7 +33,7 @@ export async function deriveSymmetricKey (
   const enc = new TextEncoder()
   const baseKey = await crypto.subtle.importKey('raw', enc.encode(passphrase + ':' + objectId), 'PBKDF2', false, ['deriveKey'])
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt, iterations: options?.iterations || 100000, hash: options?.hash || 'SHA-512' },
+    { name: 'PBKDF2', salt: salt as BufferSource, iterations: options?.iterations || 100000, hash: options?.hash || 'SHA-512' },
     baseKey,
     options?.derivedKeyType || { name: 'AES-GCM', length: 256 },
     false,
