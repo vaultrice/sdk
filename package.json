@@ -11,13 +11,16 @@
   "exports": {
     "./package.json": "./package.json",
     ".": {
+      "types": "./types/index.d.ts",
       "require": "./dist/cjs/index.js",
       "default": "./dist/esm/index.js"
     },
     "./cjs": {
+      "types": "./types/index.d.ts",
       "default": "./dist/cjs/index.js"
     },
     "./esm": {
+      "types": "./types/index.d.ts",
       "default": "./dist/esm/index.js"
     }
   },
