@@ -35,7 +35,7 @@
     "test:integration:dev": "vitest --mode integration-dev",
     "docs": "typedoc",
     "serve-docs": "http-server docs -o",
-    "preversion": "npm run test && npm run build && git push",
+    "preversion": "npm run test && npm run build",
     "postversion": "npm run docs && git commit -a -m 'docs update' && git push && git push --tags"
   },
   "author": "The Vaultrice Team <support@vaultrice.com>",
