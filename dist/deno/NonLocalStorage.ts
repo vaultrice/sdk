@@ -71,7 +71,9 @@ export default class NonLocalStorage extends WebSocketFunctions {
    * Store a value by key.
    * @param name - The key name.
    * @param value - The value to store.
-   * @param options - Optional TTL override.
+   * @param options - Optional overrides.
+   * @param options.ttl - Time-to-live in milliseconds for this item.
+   *   @default 3600000 (1 hour)
    * @returns Metadata about the stored item.
    */
   async setItem (name: string, value: ValueType, options?: { ttl?: number }): Promise<SetReturnType> {
@@ -102,7 +104,12 @@ export default class NonLocalStorage extends WebSocketFunctions {
 
   /**
    * Store multiple values at once.
-   * @param items - Object of key/value pairs.
+   * @param items - Object of key/value pairs. Example:
+   *   {
+   *     key1: { value: 'foo', ttl: 3600000 },
+   *     key2: { value: 'bar' }
+   *   }
+   *   `ttl` is time-to-live in milliseconds for each item. @default 3600000 (1 hour)
    * @returns Metadata for each stored item.
    */
   async setItems (items: Record<string, { value: ValueType, ttl?: number }>): Promise<SetItemsType | undefined> {
