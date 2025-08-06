@@ -78,6 +78,7 @@ export type InstanceOptions = {
   id?: string,
   /** Storage class. @default '_undefined_' */
   class?: string,
+  /** Time-to-live in milliseconds for this item. @default 3600000 (1 hour) */
   ttl?: number,
   passphrase?: string,
   /** Key derivation options. */

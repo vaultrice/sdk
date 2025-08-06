@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - not released yet
 
+## [0.9.2] - 2025-08-06
+
+- fixed some TypeScript docs
+
 ## [0.9.1] - 2025-08-05
 
 - fixed npm package exports for TypeScript
