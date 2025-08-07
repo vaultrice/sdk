@@ -577,9 +577,11 @@ export default class WebSocketFunctions extends Base {
         ? `Bearer ${this.accessToken}`
         : `Basic ${btoa(`${this[CREDENTIALS].apiKey}:${this[CREDENTIALS].apiSecret}`)}`
     }
-    if (this.idSignature && this.idSignatureKeyVersion !== undefined) {
+    if (this.idSignature) {
       qs.idSignature = this.idSignature
-      qs.idSignatureKeyVersion = this.idSignatureKeyVersion
+      if (this.idSignatureKeyVersion !== undefined) {
+        qs.idSignatureKeyVersion = this.idSignatureKeyVersion
+      }
     }
     const queryParams = new URLSearchParams(qs as any)
     const ws = this[WEBSOCKET] = new WebSocket(`${wsBasePath}/project/${this[CREDENTIALS].projectId}/ws/${this.class}/${this.id}?${queryParams}`)
@@ -589,9 +591,11 @@ export default class WebSocketFunctions extends Base {
     //     ? encodeURIComponent(`Bearer ${this.accessToken}`)
     //     : encodeURIComponent(`Basic ${btoa(`${this[CREDENTIALS].apiKey}:${this[CREDENTIALS].apiSecret}`)}`)
     // ]
-    // if (this.idSignature && this.idSignatureKeyVersion !== undefined) {
+    // if (this.idSignature) {
     //   protocols.push(encodeURIComponent(`X-Id-Sig ${this.idSignature}`))
-    //   protocols.push(encodeURIComponent(`X-Id-Sig-KV ${this.idSignatureKeyVersion.toString()}`))
+    //   if (this.idSignatureKeyVersion !== undefined) {
+    //     protocols.push(encodeURIComponent(`X-Id-Sig-KV ${this.idSignatureKeyVersion.toString()}`))
+    //   }
     // }
     // const ws = this[WEBSOCKET] = new WebSocket(
     //   `${wsBasePath}/project/${this[CREDENTIALS].projectId}/ws/${this.class}/${this.id}`,

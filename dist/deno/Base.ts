@@ -193,7 +193,7 @@ export default class Base {
     if (options.autoUpdateOldEncryptedValues === undefined) options.autoUpdateOldEncryptedValues = true
     this.autoUpdateOldEncryptedValues = options.autoUpdateOldEncryptedValues
     if (options.idSignature) this.idSignature = options.idSignature
-    if (this.idSignature) this.idSignatureKeyVersion = options.idSignatureKeyVersion || 0
+    if (this.idSignature) this.idSignatureKeyVersion = options.idSignatureKeyVersion
 
     this.isGettingAccessToken = this.getAccessToken()
     this.isGettingAccessToken.then(() => { this.isGettingAccessToken = undefined }, () => { this.isGettingAccessToken = undefined })
@@ -348,9 +348,11 @@ export default class Base {
     if (keyVersion !== undefined && keyVersion > -1) {
       headers['X-Enc-KV'] = keyVersion.toString()
     }
-    if (this.idSignature && this.idSignatureKeyVersion !== undefined) {
+    if (this.idSignature) {
       headers['X-Id-Sig'] = this.idSignature
-      headers['X-Id-Sig-KV'] = this.idSignatureKeyVersion.toString()
+      if (this.idSignatureKeyVersion !== undefined) {
+        headers['X-Id-Sig-KV'] = this.idSignatureKeyVersion.toString()
+      }
     }
     if (body) headers['Content-Type'] = isStringBody ? 'text/plain' : 'application/json'
     const response = await fetch(
