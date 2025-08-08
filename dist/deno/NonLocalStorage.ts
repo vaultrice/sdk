@@ -74,9 +74,11 @@ export default class NonLocalStorage extends WebSocketFunctions {
    * @param options - Optional overrides.
    * @param options.ttl - Time-to-live in milliseconds for this item.
    *   @default 3600000 (1 hour)
+   * @param options.ifAbsent - If true only set if item absent.
+   *   @default false
    * @returns Metadata about the stored item.
    */
-  async setItem (name: string, value: ValueType, options?: { ttl?: number }): Promise<SetReturnType> {
+  async setItem (name: string, value: ValueType, options?: { ttl?: number, ifAbsent?: boolean }): Promise<SetReturnType | undefined> {
     if (!name) throw new Error('No name passed!')
     if (!value && value !== 0 && value !== '' && value !== false) throw new Error('No value passed!')
     if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
@@ -87,14 +89,15 @@ export default class NonLocalStorage extends WebSocketFunctions {
 
     let response
     try {
-      response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}`, { value: valueToStore, ttl })
+      response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}`, { value: valueToStore, ttl, ifAbsent: options?.ifAbsent })
     } catch (e) {
       if (!e || (e as any)?.cause?.name !== 'ConflictError') throw e
       this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
       await this.getEncryptionSettings()
-      response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}`, { value: valueToStore, ttl })
+      response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}`, { value: valueToStore, ttl, ifAbsent: options?.ifAbsent })
     }
     const item = response as JSONObj
+    if (!item) return item
 
     return {
       expiresAt: item?.expiresAt as number,
@@ -106,13 +109,15 @@ export default class NonLocalStorage extends WebSocketFunctions {
    * Store multiple values at once.
    * @param items - Object of key/value pairs. Example:
    *   {
-   *     key1: { value: 'foo', ttl: 3600000 },
-   *     key2: { value: 'bar' }
+   *     key1: { value: 'foo' },
+   *     key2: { value: 'bar', ttl: 3600000 },
+   *     key2: { value: 'zip', ifAbsent: true }
    *   }
    *   `ttl` is time-to-live in milliseconds for each item. @default 3600000 (1 hour)
+   *   `ifAbsent` if true only set if item absent - for each item. @default false
    * @returns Metadata for each stored item.
    */
-  async setItems (items: Record<string, { value: ValueType, ttl?: number }>): Promise<SetItemsType | undefined> {
+  async setItems (items: Record<string, { value: ValueType, ttl?: number, ifAbsent?: boolean }>): Promise<SetItemsType | undefined> {
     if (!items || Object.keys(items).length === 0) throw new Error('No items passed!')
     if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
 
