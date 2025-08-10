@@ -519,6 +519,17 @@ This makes SyncObject a complete solution for real-time collaborative applicatio
 
 ---
 
+> **How Durable Object Location Is Determined**
+>
+> When you create a Vaultrice `NonLocalStorage` instance, Vaultrice automatically places the associated Durable Object in the Cloudflare region closest to the location of that **first successful request**. This “home” location is fixed for the lifetime of that object and is where all write operations will be routed.
+>
+> **Implications for Developers:**
+>
+> * If you expect most of your traffic for this `id` to come from a specific region, ensure the first initialization request originates from that region to minimize write latency.
+> * For **regional or jurisdiction-specific IDs**, you should perform the first write from a representative client/server in the target region to ensure the object’s home is set appropriately.
+
+---
+
 ## 🧰 Support
 
 Have questions, ideas or feedback? [Open an issue](https://github.com/vaultrice/sdk) or email us at [support@vaultrice.com](mailto:support@vaultrice.com)
