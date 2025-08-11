@@ -3,17 +3,20 @@ import { NonLocalStorage } from '../../src/index'
 import uuidv4 from '../../src/uuidv4'
 import mockRequest from './fixtures/requestMock'
 import mockWs from './fixtures/getWebsocketMock'
+import mockRetrieveAccessToken from './fixtures/retrieveAccessTokenMock'
 import { setTimeout as wait } from 'node:timers/promises'
 
 describe('NonLocalStorage', () => {
-  let restoreRequest, restoreWs
+  let restoreRequest, restoreWs, restoreRetrieveAccessToken
   beforeAll(() => {
     restoreRequest = mockRequest()
     restoreWs = mockWs()
+    restoreRetrieveAccessToken = mockRetrieveAccessToken()
   })
   afterAll(() => {
     restoreRequest()
     restoreWs()
+    restoreRetrieveAccessToken()
   })
 
   describe('new instance', () => {
@@ -23,6 +26,13 @@ describe('NonLocalStorage', () => {
 
       const nls2 = new NonLocalStorage({ apiKey: 'dummy', apiSecret: 'dummy', projectId: '12345' }, 'my-id')
       expect(nls2).to.have.property('id', 'my-id')
+    })
+  })
+
+  describe('static accessToken generation', () => {
+    it('should work as expected', async () => {
+      const accessToken = await NonLocalStorage.retrieveAccessToken('my-project-id', 'a-k-1', 's-k-1')
+      expect(accessToken).to.be.a('string')
     })
   })
 

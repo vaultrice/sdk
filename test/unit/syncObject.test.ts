@@ -3,23 +3,25 @@ import { createSyncObject, NonLocalStorage } from '../../src/index'
 import uuidv4 from '../../src/uuidv4'
 import mockRequest from './fixtures/requestMock'
 import mockWs from './fixtures/getWebsocketMock'
+import mockRetrieveAccessToken from './fixtures/retrieveAccessTokenMock'
 import { setTimeout as wait } from 'node:timers/promises'
 
 describe('SyncObject', () => {
-  let restoreRequest, restoreWs
+  let restoreRequest, restoreWs, restoreRetrieveAccessToken
   beforeAll(() => {
     restoreRequest = mockRequest()
     restoreWs = mockWs()
+    restoreRetrieveAccessToken = mockRetrieveAccessToken()
   })
   afterAll(() => {
     restoreRequest()
     restoreWs()
+    restoreRetrieveAccessToken()
   })
 
   describe('createSyncObject', () => {
     it('should work as expected', async () => {
       (NonLocalStorage as any).getWebSocketServer()
-      console.log(1)
       const so = await createSyncObject<{
         theme: 'light' | 'dark'
         fontSize: number

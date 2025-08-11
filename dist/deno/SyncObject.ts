@@ -15,8 +15,9 @@ import {
  */
 export default async function createSyncObject<T extends object> (
   credentials: {
-    apiKey: string
-    apiSecret: string
+    apiKey?: string,
+    apiSecret?: string,
+    accessToken?: string,
     projectId: string
   },
   idOrOptions?: string | InstanceOptions
@@ -117,6 +118,7 @@ export default async function createSyncObject<T extends object> (
   const boundSend = nls.send.bind(nls)
   const boundJoin = nls.join.bind(nls)
   const boundLeave = nls.leave.bind(nls)
+  const boundUseAccessToken = nls.useAccessToken.bind(nls)
 
   const reservedProps = [
     'id',
@@ -125,7 +127,8 @@ export default async function createSyncObject<T extends object> (
     'join',
     'leave',
     'send',
-    'joinedConnections'
+    'joinedConnections',
+    'useAccessToken'
   ]
 
   const handler: ProxyHandler<T & SyncObjectMeta> = {
@@ -153,6 +156,7 @@ export default async function createSyncObject<T extends object> (
       if (prop === 'leave') return boundLeave
       if (prop === 'send') return boundSend
       if (prop === 'joinedConnections') return joinedConnections
+      if (prop === 'useAccessToken') return boundUseAccessToken
 
       const item = (store as any)[prop] as ItemType
       if (!item) return undefined
@@ -265,6 +269,13 @@ export default async function createSyncObject<T extends object> (
     configurable: false,
     enumerable: true,
     get: () => joinedConnections
+  })
+
+  Object.defineProperty(base, 'useAccessToken', {
+    configurable: false,
+    enumerable: true,
+    writable: false,
+    value: boundUseAccessToken
   })
 
   // cast the Proxy to T & SyncObjectMeta

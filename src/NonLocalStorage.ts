@@ -27,8 +27,9 @@ export default class NonLocalStorage extends WebSocketFunctions {
    */
   constructor (
     credentials: {
-      apiKey: string,
-      apiSecret: string,
+      apiKey?: string,
+      apiSecret?: string,
+      accessToken?: string,
       projectId: string
     },
     id?: string
@@ -40,8 +41,9 @@ export default class NonLocalStorage extends WebSocketFunctions {
    */
   constructor (
     credentials: {
-      apiKey: string,
-      apiSecret: string,
+      apiKey?: string,
+      apiSecret?: string,
+      accessToken?: string,
       projectId: string
     },
     options?: InstanceOptions
@@ -53,8 +55,9 @@ export default class NonLocalStorage extends WebSocketFunctions {
    */
   constructor (
     credentials: {
-      apiKey: string,
-      apiSecret: string,
+      apiKey?: string,
+      apiSecret?: string,
+      accessToken?: string,
       projectId: string
     },
     idOrOptions?: string | InstanceOptions | undefined

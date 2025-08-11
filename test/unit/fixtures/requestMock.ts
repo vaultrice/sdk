@@ -1,4 +1,5 @@
 import { vi } from 'vitest'
+import Base from '../../../src/Base'
 import { NonLocalStorage } from '../../../src/index'
 import { JSONObj } from '../../../src/types'
 import { setImmediate } from 'node:timers/promises'
@@ -32,7 +33,7 @@ function generateDummyJWT (payload) {
 }
 
 export default () => {
-  const mock = vi.spyOn(NonLocalStorage.prototype, 'request').mockImplementation(
+  const mock = vi.spyOn(Base.prototype, 'request').mockImplementation(
     async function (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {
       await setImmediate()
       const keyVersion = this[ENCRYPTION_SETTINGS]?.keyVersion

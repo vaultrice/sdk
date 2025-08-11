@@ -23,9 +23,9 @@ npm install @vaultrice/sdk
 import { NonLocalStorage } from '@vaultrice/sdk'
 
 const nls = new NonLocalStorage({
+  projectId: 'your-project-id',
   apiKey: 'your-api-key',
-  apiSecret: 'your-api-secret',
-  projectId: 'your-project-id'
+  apiSecret: 'your-api-secret'
 }, 'your-id') // optional unique object ID
 
 await nls.setItem('key', 'value')
@@ -62,7 +62,7 @@ new NonLocalStorage(credentials, options?)
 
 **Parameters:**
 
-* `credentials`: `{ apiKey, apiSecret, projectId }`
+* `credentials`: `{ projectId, apiKey, apiSecret }`
 * `options` *(optional)*:
 
   * `id`: custom object ID (defaults to random)
@@ -179,10 +179,10 @@ Create a two-way reactive object that automatically syncs properties across all 
 ```ts
 import { createSyncObject } from '@vaultrice/sdk'
 
-const obj1 = await createSyncObject({ apiKey, apiSecret, projectId }, 'my-id')
+const obj1 = await createSyncObject({ projectId, apiKey, apiSecret }, 'my-id')
 obj1.theme = 'dark'
 
-const obj2 = await createSyncObject({ apiKey, apiSecret, projectId }, 'my-id')
+const obj2 = await createSyncObject({ projectId, apiKey, apiSecret }, 'my-id')
 console.log(obj2.theme) // 'dark'
 
 obj2.language = 'fr'
@@ -208,7 +208,7 @@ userPrefs.theme = 'dark' // Fully typed!
 SyncObjects now expose the full event system through `on` and `off` methods:
 
 ```ts
-const syncObj = await createSyncObject({ apiKey, apiSecret, projectId }, 'room-id')
+const syncObj = await createSyncObject({ projectId, apiKey, apiSecret }, 'room-id')
 
 // Listen for real-time property changes
 syncObj.on('setItem', (item) => {
@@ -262,7 +262,7 @@ syncObj.off('setItem', 'theme', themeHandler) // Remove specific handler
 SyncObjects now include built-in presence awareness and real-time messaging:
 
 ```ts
-const collabDoc = await createSyncObject({ apiKey, apiSecret, projectId }, 'doc-123')
+const collabDoc = await createSyncObject({ projectId, apiKey, apiSecret }, 'doc-123')
 
 // Join presence with user info
 await collabDoc.join({ 
@@ -324,6 +324,81 @@ await collabDoc.leave()
 - You're building complex real-time architectures
 - You need advanced features like atomic increment/decrement
 - You want to separate storage from presence/messaging logic
+
+---
+
+## Authentication Options
+
+The Vaultrice SDK supports two ways to authenticate, depending on how you want to manage credentials and token lifetimes.
+
+---
+
+### 1. **Using apiKey + apiSecret (automatic token management)**
+
+You can initialize the SDK directly with your `apiKey` and `apiSecret`.  
+The SDK will automatically request an `accessToken` from the Vaultrice API and refresh it periodicaly.
+
+```ts
+import { NonLocalStorage } from '@vaultrice/sdk';
+
+const nls = new NonLocalStorage({
+  projectId: 'your-project-id',
+  apiKey: 'your-api-key',
+  apiSecret: 'your-api-secret'
+}, 'your-object-id');
+````
+
+**Details:**
+
+* Automatic token refresh without extra setup.
+* Keys remain valid until you rotate or revoke them.
+* You can combine this with additional security controls such as [API key origin restrictions](https://www.vaultrice.com/docs/security#sf1) or server-side proxying if desired.
+
+---
+
+### 2. **Using a short-lived accessToken (lifetime \~1 hour)**
+
+Instead of passing `apiKey` and `apiSecret` to the client, you can generate a short-lived access token on your own server using the Vaultrice API, then pass it to the SDK.
+
+```javascript
+// Example: client receives `accessToken` from your backend
+// i.e.
+const accessToken = await NonLocalStorage.retrieveAccessToken('your-project-id', 'your-api-key', 'your-api-secret');
+
+// and in your client:
+const nls = new NonLocalStorage({
+  projectId: 'your-project-id',
+  accessToken: '<short-lived-access-token>'
+}, 'your-object-id');
+// or
+const syncObj = await createSyncObject({
+  projectId: 'your-project-id',
+  accessToken: '<short-lived-access-token>'
+}, 'your-object-id')
+
+// and to refresh it:
+nls.useAccessToken(accessToken);
+// or
+syncObj.useAccessToken(accessToken);
+```
+
+**Details:**
+
+* Token lifetime is short.
+* The SDK does not automatically refresh this token — when it expires, you request a new one from your backend.
+* Useful if you want to avoid sending `apiSecret` to certain environments.
+
+---
+
+### Choosing an approach
+
+| Option                  | Token refresh | Secrets in client? | Example uses                                    |
+| ----------------------- | ------------- | ------------------ | ----------------------------------------------- |
+| apiKey + apiSecret      | Auto          | Yes (if in client) | Quick setup, automatic renewal, flexible        |
+| Short-lived accessToken | Manual        | No                 | Environments where you avoid long-lived secrets |
+
+> **Note:** Both methods are fully supported — it’s up to you to decide which fits your architecture and security model.
+
 
 ---
 

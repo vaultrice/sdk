@@ -94,7 +94,7 @@ export default class Base {
   private isGettingAccessToken?: Promise<void>
 
   /** @internal API credentials */
-  private [CREDENTIALS]: { apiKey: string, apiSecret: string, projectId: string }
+  private [CREDENTIALS]: { projectId: string, apiKey?: string, apiSecret?: string, accessToken?: string }
 
   /** @internal Current encryption settings */
   private [ENCRYPTION_SETTINGS]?: EncryptionSettings
@@ -109,8 +109,9 @@ export default class Base {
    */
   constructor (
     credentials: {
-      apiKey: string,
-      apiSecret: string,
+      apiKey?: string,
+      apiSecret?: string,
+      accessToken?: string,
       projectId: string
     },
     id?: string
@@ -122,8 +123,9 @@ export default class Base {
    */
   constructor (
     credentials: {
-      apiKey: string,
-      apiSecret: string,
+      apiKey?: string,
+      apiSecret?: string,
+      accessToken?: string,
       projectId: string
     },
     options?: InstanceOptions
@@ -135,8 +137,9 @@ export default class Base {
    */
   constructor (
     credentials: {
-      apiKey: string,
-      apiSecret: string,
+      apiKey?: string,
+      apiSecret?: string,
+      accessToken?: string,
       projectId: string
     },
     idOrOptions: string | InstanceOptions | undefined = { class: DEFAULT_DURABLE_CACHE_CLASS, autoUpdateOldEncryptedValues: true, logLevel: 'warn' }
@@ -153,11 +156,34 @@ export default class Base {
     this.logger = getLogger(options.logLevel)
     if (!credentials ||
       typeof credentials !== 'object' ||
-      typeof credentials.apiKey !== 'string' ||
-      typeof credentials.apiSecret !== 'string' ||
       typeof credentials.projectId !== 'string'
     ) {
       throw new Error('Invalid credentials!')
+    }
+
+    if (
+      typeof credentials.apiKey !== 'string' &&
+      typeof credentials.apiSecret !== 'string' &&
+      typeof credentials.accessToken !== 'string'
+    ) {
+      throw new Error('Invalid credentials! (apiKey + apiSecret or accessToken)')
+    }
+
+    if (
+      (typeof credentials.apiKey === 'string' &&
+      typeof credentials.apiSecret !== 'string') ||
+      (typeof credentials.apiKey !== 'string' &&
+      typeof credentials.apiSecret === 'string')
+    ) {
+      throw new Error('Invalid credentials! (apiKey and apiSecret necessary)')
+    }
+
+    if (
+      typeof credentials.apiKey !== 'string' &&
+      typeof credentials.apiSecret !== 'string' &&
+      typeof credentials.accessToken === 'string'
+    ) {
+      this.accessToken = credentials.accessToken
     }
 
     if (typeof idOrOptions !== 'string' && !idOrOptions?.id) {
@@ -195,8 +221,57 @@ export default class Base {
     if (options.idSignature) this.idSignature = options.idSignature
     if (this.idSignature) this.idSignatureKeyVersion = options.idSignatureKeyVersion
 
-    this.isGettingAccessToken = this.getAccessToken()
-    this.isGettingAccessToken.then(() => { this.isGettingAccessToken = undefined }, () => { this.isGettingAccessToken = undefined })
+    if (!this.accessToken) {
+      this.isGettingAccessToken = this.getAccessToken()
+      this.isGettingAccessToken.then(() => { this.isGettingAccessToken = undefined }, () => { this.isGettingAccessToken = undefined })
+    }
+  }
+
+  /**
+   * Retrieves an access token for a given project using API credentials.
+   *
+   * @param projectId - The unique identifier of the project.
+   * @param apiKey - The API key associated with the project.
+   * @param apiSecret - The API secret associated with the project.
+   * @returns {Promise<string>} A promise that resolves to the access token as a string.
+   *
+   * @example
+   * ```javascript
+   * const token = await NonLocalStorage.retrieveAccessToken('projectId', 'apiKey', 'apiSecret');
+   * ```
+   */
+  public static async retrieveAccessToken (projectId: string, apiKey: string, apiSecret: string): Promise<string> {
+    if (typeof projectId !== 'string' || !projectId) throw new Error('projectId not valid!')
+    if (typeof apiKey !== 'string' || !apiKey) throw new Error('apiKey not valid!')
+    if (typeof apiSecret !== 'string' || !apiSecret) throw new Error('apiSecret not valid!')
+
+    const basicAuthHeader = `Basic ${btoa(`${apiKey}:${apiSecret}`)}`
+    const response = await fetch(
+      `${Base.basePath}/project/${projectId}/auth/token`, {
+        method: 'GET',
+        headers: {
+          Authorization: basicAuthHeader
+        }
+      }
+    )
+
+    const contentType = response.headers.get('content-type')
+    let respBody
+    if (contentType) {
+      try {
+        if (contentType.indexOf('text/plain') === 0) respBody = await response.text()
+        else if (contentType.indexOf('application/json') === 0) respBody = await response.json()
+      } catch (e) {
+        respBody = `${response.status} - ${response.statusText}`
+      }
+    }
+    if (!response.ok) {
+      if (typeof respBody === 'string') throw new Error(respBody)
+      if (respBody) throw respBody
+      if (response.status !== 404) throw new Error(`${response.status} - ${response.statusText}`)
+    }
+    const accessToken = respBody as string
+    return accessToken
   }
 
   /**
@@ -206,12 +281,22 @@ export default class Base {
    * Automatically refreshes tokens before expiry and handles JWT decoding.
    */
   private async getAccessToken () {
-    const response = await this.request('GET', '/auth/token')
-    const accessToken = response as string
+    const response = await Base.retrieveAccessToken(this[CREDENTIALS].projectId, this[CREDENTIALS].apiKey as string, this[CREDENTIALS].apiSecret as string)
+    const accessToken = response
     const decodedToken = decodeJwt(accessToken)
     this.accessToken = accessToken
     const expiresIn = (decodedToken.payload.exp as number) - Date.now()
     setTimeout(() => this.getAccessToken(), (expiresIn - (2 * 60 * 1000)))
+  }
+
+  /**
+   * Sets the access token to be used for authentication.
+   *
+   * @param accessToken - The access token string to set.
+   */
+  public useAccessToken (accessToken: string) {
+    if (typeof accessToken !== 'string' || !accessToken) throw new Error('accessToken not valid!')
+    this.accessToken = accessToken
   }
 
   /**
@@ -336,12 +421,18 @@ export default class Base {
    */
   async request (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {
     if (!this.accessToken && this.isGettingAccessToken) await this.isGettingAccessToken
+
+    const basicAuthHeader = (this[CREDENTIALS].apiKey && this[CREDENTIALS].apiSecret) ? `Basic ${btoa(`${this[CREDENTIALS].apiKey}:${this[CREDENTIALS].apiSecret}`)}` : undefined
+    const bearerAuthHeader = this.accessToken ? `Bearer ${this.accessToken}` : undefined
+    let authHeader = this.accessToken ? bearerAuthHeader : basicAuthHeader
+    if (path === '/auth/token') authHeader = basicAuthHeader
+
+    if (!authHeader) throw new Error('No authentication option provided! (apiKey + apiSecret or accessToken)')
+
     const headers: {
       Authorization: string; [key: string]: string
     } = {
-      Authorization: this.accessToken
-        ? `Bearer ${this.accessToken}`
-        : `Basic ${btoa(`${this[CREDENTIALS].apiKey}:${this[CREDENTIALS].apiSecret}`)}`
+      Authorization: authHeader
     }
     const isStringBody = typeof body === 'string'
     const keyVersion = this[ENCRYPTION_SETTINGS]?.keyVersion

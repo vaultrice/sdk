@@ -3,16 +3,19 @@ import { NonLocalStorage } from '../../src/index'
 import uuidv4 from '../../src/uuidv4'
 import mockRequest from './fixtures/requestMock'
 import mockWs from './fixtures/getWebsocketMock'
+import mockRetrieveAccessToken from './fixtures/retrieveAccessTokenMock'
 
 describe('NonLocalStorage (e2ee custom)', () => {
-  let restoreRequest, restoreWs
+  let restoreRequest, restoreWs, restoreRetrieveAccessToken
   beforeAll(() => {
     restoreRequest = mockRequest()
     restoreWs = mockWs()
+    restoreRetrieveAccessToken = mockRetrieveAccessToken()
   })
   afterAll(() => {
     restoreRequest()
     restoreWs()
+    restoreRetrieveAccessToken()
   })
 
   describe('by having the encryption functionality outside of the sdk', () => {

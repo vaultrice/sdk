@@ -201,6 +201,16 @@
 </ol>
 <p>This makes SyncObject a complete solution for real-time collaborative applications while maintaining the simple object-like interface that makes it appealing.</p>
 <hr>
+<blockquote>
+<p><strong>How Durable Object Location Is Determined</strong></p>
+<p>When you create a Vaultrice <code>NonLocalStorage</code> instance, Vaultrice automatically places the associated Durable Object in the Cloudflare region closest to the location of that <strong>first successful request</strong>. This “home” location is fixed for the lifetime of that object and is where all write operations will be routed.</p>
+<p><strong>Implications for Developers:</strong></p>
+<ul>
+<li>If you expect most of your traffic for this <code>id</code> to come from a specific region, ensure the first initialization request originates from that region to minimize write latency.</li>
+<li>For <strong>regional or jurisdiction-specific IDs</strong>, you should perform the first write from a representative client/server in the target region to ensure the object’s home is set appropriately.</li>
+</ul>
+</blockquote>
+<hr>
 <h2 id="🧰-support" class="tsd-anchor-link">🧰 Support<a href="#🧰-support" aria-label="Permalink" class="tsd-anchor-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><use href="assets/icons.svg#icon-anchor"></use></svg></a></h2><p>Have questions, ideas or feedback? <a href="https://github.com/vaultrice/sdk">Open an issue</a> or email us at <a href="mailto:support@vaultrice.com">support@vaultrice.com</a></p>
 <hr>
 <p>Made with ❤️ for developers who need real-time storage, without the backend hassle.</p>
