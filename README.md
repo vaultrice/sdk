@@ -388,6 +388,34 @@ syncObj.useAccessToken(accessToken);
 * The SDK does not automatically refresh this token — when it expires, you request a new one from your backend.
 * Useful if you want to avoid sending `apiSecret` to certain environments.
 
+### Access Token Expiring Event
+
+You can register a handler to be notified shortly before the access token expires (useful for refreshing tokens or prompting the user):
+
+```ts
+// For NonLocalStorage
+nls.onAccessTokenExpiring(() => {
+  // Called ~2 minutes before token expiry
+  refreshTokenOrPromptUser()
+})
+
+// Remove a previously registered handler
+nls.offAccessTokenExpiring(refreshTokenOrPromptUser)
+
+// For SyncObject
+syncObj.onAccessTokenExpiring(() => {
+  // Called ~2 minutes before token expiry
+  refreshTokenOrPromptUser()
+})
+
+syncObj.offAccessTokenExpiring(refreshTokenOrPromptUser)
+```
+
+**Parameters:**
+- `handler`: A callback function invoked before the access token expires.
+
+This allows you to handle token renewal or notify users before authentication
+
 ---
 
 ### Choosing an approach

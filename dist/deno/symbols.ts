@@ -39,3 +39,9 @@ export const WEBSOCKET = Symbol('vaultrice/ws')
  * @internal
  */
 export const EVENT_HANDLERS = Symbol('vaultrice/eventHandlers')
+
+/**
+ * Symbol for storing accessToken expiring handler callbacks privately within Base class instances.
+ * @internal
+ */
+export const ACCESS_TOKEN_EXPIRING_HANDLERS = Symbol('vaultrice/accessTokenExpiringHandlers')

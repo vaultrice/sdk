@@ -4,7 +4,7 @@ import uuidv4 from './uuidv4.ts'
 import { JSONObj, InstanceOptions, KeyDerivationOptions, EncryptionSettingsInfos, EncryptionSettings, EncryptionHandler } from './types.ts'
 import getLogger, { Logger } from './logger.ts'
 import decodeJwt from './decodeJwt.ts'
-import { CREDENTIALS, ENCRYPTION_SETTINGS, PREVIOUS_ENCRYPTION_SETTINGS } from './symbols.ts'
+import { CREDENTIALS, ENCRYPTION_SETTINGS, PREVIOUS_ENCRYPTION_SETTINGS, ACCESS_TOKEN_EXPIRING_HANDLERS } from './symbols.ts'
 
 /**
  * Generate a unique ID for an instance.
@@ -101,6 +101,9 @@ export default class Base {
 
   /** @internal Previous encryption settings for backwards compatibility */
   private [PREVIOUS_ENCRYPTION_SETTINGS]?: EncryptionSettings[]
+
+  /** @internal Handlers for access token expiring event */
+  private [ACCESS_TOKEN_EXPIRING_HANDLERS]: Array<() => void> = []
 
   /**
    * Create a Base instance with string ID.
@@ -296,7 +299,33 @@ export default class Base {
    */
   public useAccessToken (accessToken: string) {
     if (typeof accessToken !== 'string' || !accessToken) throw new Error('accessToken not valid!')
+    const decodedToken = decodeJwt(accessToken)
     this.accessToken = accessToken
+    const expiresIn = (decodedToken.payload.exp as number) - Date.now()
+    setTimeout(() => {
+      this[ACCESS_TOKEN_EXPIRING_HANDLERS].forEach((h: () => void) => h())
+    }, (expiresIn - (2 * 60 * 1000)))
+  }
+
+  /**
+   * Registers a handler function to be called when the access token is about to expire.
+   *
+   * @param handler - A callback function that will be invoked before the access token expires.
+   */
+  public onAccessTokenExpiring (handler: (() => void)) {
+    this[ACCESS_TOKEN_EXPIRING_HANDLERS].push(handler)
+  }
+
+  /**
+   * Removes a previously registered handler for the access token expiring event.
+   *
+   * @param handler - The callback function to remove from the access token expiring handlers list.
+   */
+  public offAccessTokenExpiring (handler: (() => void)) {
+    const idx = this[ACCESS_TOKEN_EXPIRING_HANDLERS].indexOf(handler)
+    if (idx !== -1) {
+      this[ACCESS_TOKEN_EXPIRING_HANDLERS].splice(idx, 1)
+    }
   }
 
   /**
