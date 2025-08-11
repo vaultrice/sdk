@@ -575,11 +575,11 @@ export default class WebSocketFunctions extends Base {
 
     const wsBasePath = WebSocketFunctions.basePath.replace('http', 'ws')
 
-    const qs: any = {
-      auth: this.accessToken
-        ? `Bearer ${this.accessToken}`
-        : `Basic ${btoa(`${this[CREDENTIALS].apiKey}:${this[CREDENTIALS].apiSecret}`)}`
-    }
+    const basicAuthHeader = (this[CREDENTIALS].apiKey && this[CREDENTIALS].apiSecret) ? `Basic ${btoa(`${this[CREDENTIALS].apiKey}:${this[CREDENTIALS].apiSecret}`)}` : undefined
+    const bearerAuthHeader = this.accessToken ? `Bearer ${this[CREDENTIALS].accessToken}` : undefined
+    const authHeader = this[CREDENTIALS].accessToken ? bearerAuthHeader : basicAuthHeader
+
+    const qs: any = { auth: authHeader }
     if (this.idSignature) {
       qs.idSignature = this.idSignature
       if (this.idSignatureKeyVersion !== undefined) {
@@ -590,9 +590,9 @@ export default class WebSocketFunctions extends Base {
     const ws = this[WEBSOCKET] = new WebSocket(`${wsBasePath}/project/${this[CREDENTIALS].projectId}/ws/${this.class}/${this.id}?${queryParams}`)
 
     // const protocols = [
-    //   this.accessToken
-    //     ? encodeURIComponent(`Bearer ${this.accessToken}`)
-    //     : encodeURIComponent(`Basic ${btoa(`${this[CREDENTIALS].apiKey}:${this[CREDENTIALS].apiSecret}`)}`)
+    //   this[CREDENTIALS].accessToken
+    //     ? encodeURIComponent(bearerAuthHeader)
+    //     : encodeURIComponent(basicAuthHeader)
     // ]
     // if (this.idSignature) {
     //   protocols.push(encodeURIComponent(`X-Id-Sig ${this.idSignature}`))

@@ -181,20 +181,21 @@ export default class Base {
       throw new Error('Invalid credentials! (apiKey and apiSecret necessary)')
     }
 
-    if (
-      typeof credentials.apiKey !== 'string' &&
-      typeof credentials.apiSecret !== 'string' &&
-      typeof credentials.accessToken === 'string'
-    ) {
-      this.accessToken = credentials.accessToken
-    }
-
     if (typeof idOrOptions !== 'string' && !idOrOptions?.id) {
       // try to save that id locally
       setLocalId(credentials.projectId, idOrOptions.class || DEFAULT_DURABLE_CACHE_CLASS, this.id as string)
     }
 
-    this[CREDENTIALS] = credentials
+    this[CREDENTIALS] = { ...credentials }
+
+    if (
+      typeof this[CREDENTIALS].apiKey !== 'string' &&
+      typeof this[CREDENTIALS].apiSecret !== 'string' &&
+      typeof this[CREDENTIALS].accessToken === 'string'
+    ) {
+      delete this[CREDENTIALS].apiKey
+      delete this[CREDENTIALS].apiSecret
+    }
 
     this.class = options.class || DEFAULT_DURABLE_CACHE_CLASS
 
@@ -224,7 +225,7 @@ export default class Base {
     if (options.idSignature) this.idSignature = options.idSignature
     if (this.idSignature) this.idSignatureKeyVersion = options.idSignatureKeyVersion
 
-    if (!this.accessToken) {
+    if (!this[CREDENTIALS].accessToken) {
       this.isGettingAccessToken = this.getAccessToken()
       this.isGettingAccessToken.then(() => { this.isGettingAccessToken = undefined }, () => { this.isGettingAccessToken = undefined })
     }
@@ -285,10 +286,7 @@ export default class Base {
    */
   private async getAccessToken () {
     const response = await Base.retrieveAccessToken(this[CREDENTIALS].projectId, this[CREDENTIALS].apiKey as string, this[CREDENTIALS].apiSecret as string)
-    const accessToken = response
-    const decodedToken = decodeJwt(accessToken)
-    this.accessToken = accessToken
-    const expiresIn = (decodedToken.payload.exp as number) - Date.now()
+    const expiresIn = this.useAccessToken(response)
     setTimeout(() => this.getAccessToken(), (expiresIn - (2 * 60 * 1000)))
   }
 
@@ -296,15 +294,17 @@ export default class Base {
    * Sets the access token to be used for authentication.
    *
    * @param accessToken - The access token string to set.
+   * @returns {number} token expiration in milliseconds from now
    */
-  public useAccessToken (accessToken: string) {
+  public useAccessToken (accessToken: string): number {
     if (typeof accessToken !== 'string' || !accessToken) throw new Error('accessToken not valid!')
     const decodedToken = decodeJwt(accessToken)
-    this.accessToken = accessToken
+    this[CREDENTIALS].accessToken = accessToken
     const expiresIn = (decodedToken.payload.exp as number) - Date.now()
     setTimeout(() => {
       this[ACCESS_TOKEN_EXPIRING_HANDLERS].forEach((h: () => void) => h())
     }, (expiresIn - (2 * 60 * 1000)))
+    return expiresIn
   }
 
   /**
@@ -441,7 +441,7 @@ export default class Base {
    * @param method - HTTP method (GET, POST, DELETE, etc.).
    * @param path - API endpoint path.
    * @param body - Optional request body (JSON object, string, or string array).
-   * @returns Promise resolving to the response data.
+   * @returns {Promise<string | string[] | JSONObj | undefined>} Promise resolving to the response data.
    * @throws Error if the request fails or returns an error status.
    * @remarks
    * Handles authentication, content-type headers, encryption key versions,
@@ -449,11 +449,11 @@ export default class Base {
    * @private
    */
   async request (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {
-    if (!this.accessToken && this.isGettingAccessToken) await this.isGettingAccessToken
+    if (!this[CREDENTIALS].accessToken && this.isGettingAccessToken) await this.isGettingAccessToken
 
     const basicAuthHeader = (this[CREDENTIALS].apiKey && this[CREDENTIALS].apiSecret) ? `Basic ${btoa(`${this[CREDENTIALS].apiKey}:${this[CREDENTIALS].apiSecret}`)}` : undefined
-    const bearerAuthHeader = this.accessToken ? `Bearer ${this.accessToken}` : undefined
-    let authHeader = this.accessToken ? bearerAuthHeader : basicAuthHeader
+    const bearerAuthHeader = this[CREDENTIALS].accessToken ? `Bearer ${this[CREDENTIALS].accessToken}` : undefined
+    let authHeader = this[CREDENTIALS].accessToken ? bearerAuthHeader : basicAuthHeader
     if (path === '/auth/token') authHeader = basicAuthHeader
 
     if (!authHeader) throw new Error('No authentication option provided! (apiKey + apiSecret or accessToken)')
