@@ -550,15 +550,17 @@ export default class WebSocketFunctions extends Base {
    */
   disconnect () {
     if (!this[WEBSOCKET]) return
-    if (this.hasJoined) {
-      this.leave()
-    }
-    this[WEBSOCKET].close()
-    delete this[WEBSOCKET]
+    const cleanup = () => {
+      if (!this[WEBSOCKET]) return
+      this[WEBSOCKET].close()
+      delete this[WEBSOCKET]
 
-    // Clear all event handlers
-    this[EVENT_HANDLERS].clear()
-    this[ERROR_HANDLERS].length = 0
+      // Clear all event handlers
+      this[EVENT_HANDLERS].clear()
+      this[ERROR_HANDLERS].length = 0
+    }
+    if (!this.hasJoined) return cleanup()
+    this.leave().then(cleanup)
   }
 
   /**
@@ -580,8 +582,6 @@ export default class WebSocketFunctions extends Base {
     const basicAuthHeader = (this[CREDENTIALS].apiKey && this[CREDENTIALS].apiSecret) ? `Basic ${btoa(`${this[CREDENTIALS].apiKey}:${this[CREDENTIALS].apiSecret}`)}` : undefined
     const bearerAuthHeader = this[CREDENTIALS].accessToken ? `Bearer ${this[CREDENTIALS].accessToken}` : undefined
     const authHeader = this[CREDENTIALS].accessToken ? bearerAuthHeader : basicAuthHeader
-
-    console.log(authHeader)
 
     const qs: any = { auth: authHeader }
     if (this.idSignature) {
