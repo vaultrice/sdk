@@ -80,6 +80,7 @@ export type InstanceOptions = {
   class?: string,
   /** Time-to-live in milliseconds for this item. @default 3600000 (1 hour) */
   ttl?: number,
+  /** Passphrase used for e2e encryption */
   passphrase?: string,
   /** Key derivation options. */
   keyDerivationOptions?: KeyDerivationOptions,
@@ -87,10 +88,27 @@ export type InstanceOptions = {
   getEncryptionHandler?: (encryptionSettings: EncryptionSettings) => Promise<EncryptionHandler>
   /** Auto-update old encrypted values. @default true */
   autoUpdateOldEncryptedValues?: boolean,
+  /** Signature (generated in your backend) of the id. */
   idSignature?: string,
+  /** Key version for the signature (generated in your backend) of the id. */
   idSignatureKeyVersion?: number,
   /** Log level. @default 'warn' */
-  logLevel?: LogLevel
+  logLevel?: LogLevel,
+  /**
+   * WebSocket connection settings.
+   *
+   * @property autoReconnect - If true, automatically reconnect on unexpected disconnects. @default true
+   * @property reconnectBaseDelay - Base delay in milliseconds for exponential backoff between reconnect attempts. @default 1000
+   * @property reconnectMaxDelay - Maximum delay in milliseconds for exponential backoff between reconnect attempts. @default 30000
+   */
+  webSocketSettings?: {
+    /** If true, automatically reconnect on unexpected disconnects. @default true */
+    autoReconnect?: boolean,
+    /** Base delay in milliseconds for exponential backoff between reconnect attempts. @default 1000 */
+    reconnectBaseDelay?: number,
+    /** Maximum delay in milliseconds for exponential backoff between reconnect attempts. @default 30000 */
+    reconnectMaxDelay?: number
+  }
 }
 
 /**
@@ -112,14 +130,19 @@ export type EncryptionSettingsInfos = {
 
 /**
  * Presence event: connection left.
+ *
+ * @property connectionId - Unique identifier for the connection.
+ * @property data - Optional custom data associated with the connection.
  */
 export type LeavedConnection = {
-  connectionId: string,
+  connectionId: string
   data?: JSONObj
 }
 
 /**
  * Presence event: connection joined.
+ *
+ * @property joinedAt - Timestamp (ms) when the connection joined.
  */
 export type JoinedConnection = LeavedConnection & {
   joinedAt: number
@@ -132,6 +155,20 @@ export type JoinedConnections = JoinedConnection[]
 
 /**
  * Metadata for a SyncObject.
+ *
+ * @property id - The unique identifier for the SyncObject.
+ * @property joinedConnections - List of currently joined connections.
+ * @property join - Join the presence channel with custom data.
+ * @property leave - Leave the presence channel.
+ * @property send - Send a message to other clients.
+ * @property on - Register an event handler.
+ * @property off - Unregister an event handler.
+ * @property useAccessToken - Set a new access token for authentication.
+ * @property onAccessTokenExpiring - Register a handler for access token expiring events.
+ * @property offAccessTokenExpiring - Unregister a handler for access token expiring events.
+ * @property connect - Manually connect the SyncObject.
+ * @property disconnect - Manually disconnect the SyncObject.
+ * @property isConnected - Indicates if the SyncObject is currently connected.
  */
 export interface SyncObjectMeta {
   readonly id: string
@@ -139,6 +176,12 @@ export interface SyncObjectMeta {
   readonly join: (data: JSONObj) => Promise<undefined>
   readonly leave: () => Promise<undefined>
   readonly send: (msg: JSONObj, options?: { transport?: 'ws' | 'http' }) => Promise<undefined>
+  /**
+   * Register an event handler.
+   *
+   * @param event - The event name.
+   * @param handler - The handler function.
+   */
   readonly on: {
     (event: 'connect', handler: () => void): any
     (event: 'disconnect', handler: () => void): any
@@ -156,6 +199,12 @@ export interface SyncObjectMeta {
       handler?: ((item: ItemType & { prop: string }) => void) | (() => void) | ((name: string) => void) | ((error: Error) => void) | ((data: JSONObj) => void)
     ): any
   }
+  /**
+   * Unregister an event handler.
+   *
+   * @param event - The event name.
+   * @param handler - The handler function.
+   */
   readonly off: {
     (event: 'connect', handler: () => void): any
     (event: 'disconnect', handler: () => void): any
@@ -173,9 +222,34 @@ export interface SyncObjectMeta {
       handler?: ((item: ItemType & { prop: string }) => void) | (() => void) | ((name: string) => void) | ((error: Error) => void) | ((data: JSONObj) => void)
     ): any
   }
+  /**
+   * Set a new access token for authentication.
+   *
+   * @param accessToken - The new access token.
+   */
   readonly useAccessToken: (accessToken: string) => void
+  /**
+   * Register a handler for access token expiring events.
+   *
+   * @param handler - The handler function.
+   */
   readonly onAccessTokenExpiring: (handler: () => void) => void
+  /**
+   * Unregister a handler for access token expiring events.
+   *
+   * @param handler - The handler function.
+   */
   readonly offAccessTokenExpiring: (handler: () => void) => void
+  /**
+   * Manually connect the SyncObject.
+   */
   readonly connect: () => Promise<void>
+  /**
+   * Manually disconnect the SyncObject.
+   */
   readonly disconnect: () => Promise<void>
+  /**
+   * Indicates if the SyncObject is currently connected.
+   */
+  readonly isConnected: boolean
 }

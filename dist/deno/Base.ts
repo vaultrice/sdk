@@ -250,6 +250,7 @@ export default class Base {
     if (typeof apiSecret !== 'string' || !apiSecret) throw new Error('apiSecret not valid!')
 
     const basicAuthHeader = `Basic ${btoa(`${apiKey}:${apiSecret}`)}`
+
     const response = await fetch(
       `${Base.basePath}/project/${projectId}/auth/token`, {
         method: 'GET',
@@ -285,9 +286,14 @@ export default class Base {
    * Automatically refreshes tokens before expiry and handles JWT decoding.
    */
   private async getAccessToken () {
-    const response = await Base.retrieveAccessToken(this[CREDENTIALS].projectId, this[CREDENTIALS].apiKey as string, this[CREDENTIALS].apiSecret as string)
-    const expiresIn = this.useAccessToken(response)
-    setTimeout(() => this.getAccessToken(), (expiresIn - (2 * 60 * 1000)))
+    try {
+      const response = await Base.retrieveAccessToken(this[CREDENTIALS].projectId, this[CREDENTIALS].apiKey as string, this[CREDENTIALS].apiSecret as string)
+      const expiresIn = this.useAccessToken(response)
+      setTimeout(() => this.getAccessToken(), (expiresIn - (2 * 60 * 1000)))
+    } catch (e: any) {
+      this.logger.log('error', `Retrieving access token failed: ${e?.message || e?.name || e?.type || e}`)
+      throw e
+    }
   }
 
   /**

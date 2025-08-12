@@ -66,6 +66,23 @@ export default async function createSyncObject<T extends object> (
     nls.on('error', errorHandler)
   })
 
+  nls.on('connect', async () => {
+    try {
+      // Re-fetch all items
+      const items = await nls.getAllItems()
+      if (items) {
+        Object.keys(items).forEach((k) => {
+          (store as any)[k] = items[k]
+        })
+      }
+      // Re-fetch joined connections
+      joinedConnections = await nls.getJoinedConnections()
+    } catch (e) {
+    // Optionally log or handle errors
+      joinedConnections = []
+    }
+  })
+
   // Set up event listeners after waiting for connection
   nls.on('setItem', (item) => {
     (store as any)[item.prop] = {
@@ -135,7 +152,8 @@ export default async function createSyncObject<T extends object> (
     'onAccessTokenExpiring',
     'offAccessTokenExpiring',
     'connect',
-    'disconnect'
+    'disconnect',
+    'isConnected'
   ]
 
   const handler: ProxyHandler<T & SyncObjectMeta> = {
@@ -168,6 +186,7 @@ export default async function createSyncObject<T extends object> (
       if (prop === 'offAccessTokenExpiring') return boundOffAccessTokenExpiring
       if (prop === 'connect') return boundConnect
       if (prop === 'disconnect') return boundDisconnect
+      if (prop === 'isConnected') return nls.isConnected
 
       const item = (store as any)[prop] as ItemType
       if (!item) return undefined
@@ -315,6 +334,12 @@ export default async function createSyncObject<T extends object> (
     enumerable: true,
     writable: false,
     value: boundDisconnect
+  })
+
+  Object.defineProperty(base, 'isConnected', {
+    configurable: false,
+    enumerable: true,
+    get: () => nls.isConnected
   })
 
   // cast the Proxy to T & SyncObjectMeta

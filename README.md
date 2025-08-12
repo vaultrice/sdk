@@ -109,6 +109,7 @@ nls.off('connect', connectHandler)
 nls.off('setItem', itemHandler)
 
 nls.disconnect()
+nls.isConnected // true | false
 ```
 
 You can also filter by key:
@@ -231,6 +232,7 @@ syncObj.on('removeItem', (item) => {
 // Listen for connection events
 syncObj.on('connect', () => console.log('Connected to real-time sync'))
 syncObj.on('disconnect', () => console.log('Disconnected'))
+syncObj.isConnected // true | false
 
 // Listen for presence events
 syncObj.on('presence:join', (connection) => {

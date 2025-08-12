@@ -26,6 +26,43 @@ export default class WebSocketFunctions extends Base {
   private [EVENT_HANDLERS]: Map<string, Set<{ handler: Function, wsListener?: Function, itemName?: string }>> = new Map()
 
   /**
+ * Whether automatic reconnection is enabled for the WebSocket.
+ * If true, the client will attempt to reconnect on unexpected disconnects.
+ * Controlled via InstanceOptions.webSocketSettings.autoReconnect.
+ */
+  private autoReconnect: boolean
+
+  /**
+ * Number of consecutive reconnection attempts made after a disconnect.
+ * Used for exponential backoff calculation.
+ */
+  private reconnectAttempts: number = 0
+
+  /**
+ * Base delay (in milliseconds) for exponential backoff between reconnect attempts.
+ * Controlled via InstanceOptions.webSocketSettings.reconnectBaseDelay.
+ */
+  private reconnectBaseDelay: number = 1000
+
+  /**
+ * Maximum delay (in milliseconds) for exponential backoff between reconnect attempts.
+ * Controlled via InstanceOptions.webSocketSettings.reconnectMaxDelay.
+ */
+  private reconnectMaxDelay: number = 30000
+
+  /**
+ * Stores the last join data used for presence channel re-joining after reconnect.
+ * Used to automatically re-join with the same data after a successful reconnection.
+ */
+  private lastJoinData?: JSONObj
+
+  /**
+ * Indicates if the WebSocket connection is currently established.
+ * True if connected, false otherwise.
+ */
+  public isConnected: boolean = false
+
+  /**
    * Create a WebSocketFunctions instance with string ID.
    * @param credentials - API credentials containing apiKey, apiSecret, and projectId.
    * @param id - Optional unique identifier for this instance.
@@ -72,6 +109,11 @@ export default class WebSocketFunctions extends Base {
     this.hasJoined = false
     this[ERROR_HANDLERS] = []
     this[EVENT_HANDLERS] = new Map()
+
+    const opts = typeof idOrOptions === 'object' ? idOrOptions : {}
+    this.autoReconnect = opts.webSocketSettings?.autoReconnect ?? true
+    this.reconnectBaseDelay = opts.webSocketSettings?.reconnectBaseDelay ?? 1000
+    this.reconnectMaxDelay = opts.webSocketSettings?.reconnectMaxDelay ?? 30000
   }
 
   /**
@@ -560,6 +602,7 @@ export default class WebSocketFunctions extends Base {
    * other clients of the departure. All event handlers are also cleaned up.
    */
   async disconnect () {
+    this.autoReconnect = false
     if (!this[WEBSOCKET]) return
 
     if (this.hasJoined) await this.leave()
@@ -602,6 +645,13 @@ export default class WebSocketFunctions extends Base {
     const queryParams = new URLSearchParams(qs as any)
     const ws = this[WEBSOCKET] = new WebSocket(`${wsBasePath}/project/${this[CREDENTIALS].projectId}/ws/${this.class}/${this.id}?${queryParams}`)
 
+    ws.addEventListener('open', () => {
+      this.isConnected = true
+    }, { once: true })
+    ws.addEventListener('close', () => {
+      this.isConnected = false
+    }, { once: true })
+
     // const protocols = [
     //   this[CREDENTIALS].accessToken
     //     ? encodeURIComponent(bearerAuthHeader)
@@ -619,9 +669,148 @@ export default class WebSocketFunctions extends Base {
     // )
     ws.addEventListener('close', () => {
       delete this[WEBSOCKET]
+      const wasJoined = this.hasJoined
+      const lastJoinData = this.lastJoinData
       if (this.hasJoined) this.hasJoined = false
 
-      // TODO: if autoReconnect === true, reconnect ?
+      if (this.autoReconnect) {
+        const tryReconnect = async () => {
+          const delay = Math.min(
+            this.reconnectBaseDelay * Math.pow(2, this.reconnectAttempts),
+            this.reconnectMaxDelay
+          )
+          setTimeout(async () => {
+            this.reconnectAttempts++
+            this.logger.log('warn', `${this.reconnectAttempts}. reconnection attempt...`)
+            let ws: WebSocket | undefined
+            try {
+              delete this[WEBSOCKET]
+              ws = await this.getWebSocket()
+            } catch (e: any) {
+              this.logger.log('error', e?.message || e?.name || e?.type || e)
+              tryReconnect()
+              return
+            }
+
+            const wireUpAgain = async () => {
+              this.reconnectAttempts = 0
+              // Reattach all event handlers
+              if (!this[WEBSOCKET]) return
+              const ws = this[WEBSOCKET]
+              // Reattach EVENT_HANDLERS
+              for (const [event, handlers] of this[EVENT_HANDLERS]) {
+                for (const entry of handlers) {
+                  let wsListener: EventListener | undefined
+                  if (event === 'connect') {
+                    wsListener = () => entry.handler()
+                    ws.addEventListener('open', wsListener)
+                  } else if (event === 'disconnect') {
+                    wsListener = () => entry.handler()
+                    ws.addEventListener('close', wsListener)
+                  } else if (event === 'error') {
+                    wsListener = (evt: any) => {
+                      try {
+                        const errorMessage = evt?.message || evt?.data || evt?.type || (typeof evt === 'string' ? evt : 'WebSocket error occurred')
+                        entry.handler(new Error(errorMessage))
+                      } catch (e) {
+                        entry.handler(new Error('WebSocket error occurred'))
+                      }
+                    }
+                    ws.addEventListener('error', wsListener)
+                  } else if (event === 'message') {
+                    wsListener = (evt: Event) => {
+                      const msg = JSON.parse((evt as MessageEvent).data)
+                      if (msg.event === 'message') entry.handler(msg.payload)
+                    }
+                    ws.addEventListener('message', wsListener)
+                  } else if (event === 'presence:join') {
+                    wsListener = (evt: Event) => {
+                      const msg = JSON.parse((evt as MessageEvent).data)
+                      if (msg.event === 'presence:join') entry.handler(msg.payload)
+                    }
+                    ws.addEventListener('message', wsListener)
+                  } else if (event === 'presence:leave') {
+                    wsListener = (evt: Event) => {
+                      const msg = JSON.parse((evt as MessageEvent).data)
+                      if (msg.event === 'presence:leave') entry.handler(msg.payload)
+                    }
+                    ws.addEventListener('message', wsListener)
+                  } else if (event === 'setItem') {
+                    wsListener = (evt: Event) => {
+                      const msg = JSON.parse((evt as MessageEvent).data)
+                      if (msg.event === 'setItem') {
+                        if (!entry.itemName || msg.payload.prop === entry.itemName) entry.handler(msg.payload)
+                      }
+                    }
+                    ws.addEventListener('message', wsListener)
+                  } else if (event === 'removeItem') {
+                    wsListener = (evt: Event) => {
+                      const msg = JSON.parse((evt as MessageEvent).data)
+                      if (msg.event === 'removeItem') {
+                        if (!entry.itemName || msg.payload.prop === entry.itemName) entry.handler(msg.payload)
+                      }
+                    }
+                    ws.addEventListener('message', wsListener)
+                  }
+                  // Update wsListener reference for future removal
+                  if (wsListener) entry.wsListener = wsListener
+                }
+              }
+              // Call 'connect' event handlers
+              const connectHandlers = this[EVENT_HANDLERS].get('connect')
+              if (connectHandlers) {
+                for (const entry of connectHandlers) {
+                  try {
+                    entry.handler()
+                  } catch (e: any) {
+                    // Optionally log or handle errors
+                    this.logger.log('error', e)
+                  }
+                }
+              }
+              if (wasJoined && lastJoinData) {
+                await this.join(lastJoinData)
+              }
+            }
+
+            // Always attach listeners, regardless of state
+            const removeListeners = () => {
+              ws?.removeEventListener('open', openListener)
+              ws?.removeEventListener('close', closeListener)
+              ws?.removeEventListener('error', errorListener)
+            }
+            const openListener = async () => {
+              await wireUpAgain()
+              removeListeners()
+            }
+            const closeListener = () => {
+              removeListeners()
+              tryReconnect()
+            }
+            const errorListener = (e: any) => {
+              this.logger.log('error', e?.message || e?.name || e?.type || e)
+              removeListeners()
+              tryReconnect()
+            }
+            ws.addEventListener('open', openListener, { once: true })
+            ws.addEventListener('close', closeListener, { once: true })
+            ws.addEventListener('error', errorListener, { once: true })
+
+            // If ws is closed or closing, retry immediately
+            if (ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED) {
+              tryReconnect()
+              return
+            }
+
+            // If ws is open, join and reset attempts
+            if (ws.readyState === WebSocket.OPEN) {
+              await wireUpAgain()
+              removeListeners()
+            }
+          }, delay)
+        }
+        tryReconnect()
+      }
     })
     return ws
   }
@@ -649,6 +838,7 @@ export default class WebSocketFunctions extends Base {
    */
   async join (data: JSONObj): Promise<undefined> {
     this.hasJoined = true
+    this.lastJoinData = data
     if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
 
     const dataToSend = this.encryptionHandler ? await this.encryptionHandler.encrypt(JSON.stringify(data)) : data
