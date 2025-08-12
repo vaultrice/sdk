@@ -91,7 +91,7 @@ export default class Base {
   protected encryptionHandler?: EncryptionHandler
 
   /** @internal Promise for token acquisition */
-  private isGettingAccessToken?: Promise<void>
+  protected isGettingAccessToken?: Promise<void>
 
   /** @internal API credentials */
   private [CREDENTIALS]: { projectId: string, apiKey?: string, apiSecret?: string, accessToken?: string }

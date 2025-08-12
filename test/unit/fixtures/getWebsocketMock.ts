@@ -118,7 +118,7 @@ export default () => {
   }
 
   const mock = vi.spyOn(NonLocalStorage.prototype, 'getWebSocket').mockImplementation(
-    function (): WebSocket {
+    async function (): Promise<WebSocket> {
       const roomKey = `${this[CREDENTIALS].projectId}:${this.class}`
       const apiKey = this[CREDENTIALS].apiKey
 

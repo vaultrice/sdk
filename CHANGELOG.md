@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - not released yet
 
+## [0.9.8](https://github.com/vaultrice/sdk/compare/v0.9.7...v0.9.8) - 2025-08-12
+
+- improve parallel ws + request execution
+
 ## [0.9.7](https://github.com/vaultrice/sdk/compare/v0.9.6...v0.9.7) - 2025-08-11
 
 - improve internal accessToken handling

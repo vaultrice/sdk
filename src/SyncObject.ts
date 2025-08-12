@@ -37,13 +37,12 @@ export default async function createSyncObject<T extends object> (
   // Wait for WebSocket connection to be established before proceeding
   const connectedPromise = new Promise<void>((resolve, reject) => {
     // Get the WebSocket to trigger connection
-    const ws = nls.getWebSocket()
-
-    // Check if already connected
-    if (ws.readyState === WebSocket.OPEN) {
-      resolve()
-      return
-    }
+    nls.getWebSocket().then((ws) => {
+      // Check if already connected
+      if (ws.readyState === WebSocket.OPEN) {
+        resolve()
+      }
+    }).catch(reject)
 
     const timeout = setTimeout(() => {
       reject(new Error('WebSocket connection timeout after 10 seconds'))
