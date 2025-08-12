@@ -541,6 +541,17 @@ export default class WebSocketFunctions extends Base {
   }
 
   /**
+   * Opens the WebSocket connection.
+   *
+   * @remarks
+   * Does usually not need to be used, since the WebSocke connection is automatically established on WS feature usage.
+   */
+  async connect () {
+    if (this[WEBSOCKET]) return
+    await this.getWebSocket()
+  }
+
+  /**
    * Close the WebSocket connection and clean up resources.
    *
    * @remarks
@@ -548,19 +559,17 @@ export default class WebSocketFunctions extends Base {
    * leave before disconnecting. This ensures proper cleanup and notifies
    * other clients of the departure. All event handlers are also cleaned up.
    */
-  disconnect () {
+  async disconnect () {
     if (!this[WEBSOCKET]) return
-    const cleanup = () => {
-      if (!this[WEBSOCKET]) return
-      this[WEBSOCKET].close()
-      delete this[WEBSOCKET]
 
-      // Clear all event handlers
-      this[EVENT_HANDLERS].clear()
-      this[ERROR_HANDLERS].length = 0
-    }
-    if (!this.hasJoined) return cleanup()
-    this.leave().then(cleanup)
+    if (this.hasJoined) await this.leave()
+
+    this[WEBSOCKET].close()
+    delete this[WEBSOCKET]
+
+    // Clear all event handlers
+    this[EVENT_HANDLERS].clear()
+    this[ERROR_HANDLERS].length = 0
   }
 
   /**
@@ -611,6 +620,8 @@ export default class WebSocketFunctions extends Base {
     ws.addEventListener('close', () => {
       delete this[WEBSOCKET]
       if (this.hasJoined) this.hasJoined = false
+
+      // TODO: if autoReconnect === true, reconnect ?
     })
     return ws
   }

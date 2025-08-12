@@ -173,4 +173,9 @@ export interface SyncObjectMeta {
       handler?: ((item: ItemType & { prop: string }) => void) | (() => void) | ((name: string) => void) | ((error: Error) => void) | ((data: JSONObj) => void)
     ): any
   }
+  readonly useAccessToken: (accessToken: string) => void
+  readonly onAccessTokenExpiring: (handler: () => void) => void
+  readonly offAccessTokenExpiring: (handler: () => void) => void
+  readonly connect: () => Promise<void>
+  readonly disconnect: () => Promise<void>
 }

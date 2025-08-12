@@ -120,6 +120,8 @@ export default async function createSyncObject<T extends object> (
   const boundUseAccessToken = nls.useAccessToken.bind(nls)
   const boundOnAccessTokenExpiring = nls.onAccessTokenExpiring.bind(nls)
   const boundOffAccessTokenExpiring = nls.offAccessTokenExpiring.bind(nls)
+  const boundConnect = nls.connect.bind(nls)
+  const boundDisconnect = nls.disconnect.bind(nls)
 
   const reservedProps = [
     'id',
@@ -131,7 +133,9 @@ export default async function createSyncObject<T extends object> (
     'joinedConnections',
     'useAccessToken',
     'onAccessTokenExpiring',
-    'offAccessTokenExpiring'
+    'offAccessTokenExpiring',
+    'connect',
+    'disconnect'
   ]
 
   const handler: ProxyHandler<T & SyncObjectMeta> = {
@@ -162,6 +166,8 @@ export default async function createSyncObject<T extends object> (
       if (prop === 'useAccessToken') return boundUseAccessToken
       if (prop === 'onAccessTokenExpiring') return boundOnAccessTokenExpiring
       if (prop === 'offAccessTokenExpiring') return boundOffAccessTokenExpiring
+      if (prop === 'connect') return boundConnect
+      if (prop === 'disconnect') return boundDisconnect
 
       const item = (store as any)[prop] as ItemType
       if (!item) return undefined
@@ -295,6 +301,20 @@ export default async function createSyncObject<T extends object> (
     enumerable: true,
     writable: false,
     value: boundOffAccessTokenExpiring
+  })
+
+  Object.defineProperty(base, 'connect', {
+    configurable: false,
+    enumerable: true,
+    writable: false,
+    value: boundConnect
+  })
+
+  Object.defineProperty(base, 'disconnect', {
+    configurable: false,
+    enumerable: true,
+    writable: false,
+    value: boundDisconnect
   })
 
   // cast the Proxy to T & SyncObjectMeta
