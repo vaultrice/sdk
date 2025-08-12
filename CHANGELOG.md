@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - not released yet
 
+## [0.9.10](https://github.com/vaultrice/sdk/compare/v0.9.9...v0.9.10) - 2025-08-12
+
+- introduce autoReconnect
+
 ## [0.9.9](https://github.com/vaultrice/sdk/compare/v0.9.8...v0.9.9) - 2025-08-12
 
 - dedicated connect() function
