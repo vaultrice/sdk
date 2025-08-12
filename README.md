@@ -7,7 +7,7 @@ A secure, real-time, cloud-based storage SDK with a familiar `localStorage`-like
 
 > Vaultrice is ideal for state sharing between tabs, browsers, devices, or domains — with built-in real-time updates and optional encryption.
 
-> **Vaultrice offers a free tier — get started without having to pay!**  
+> **Vaultrice offers a free tier — [get started](https://www.vaultrice.app/register) without having to pay!**  
 
 ---
 
