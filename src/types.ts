@@ -11,8 +11,22 @@ export type ValueType =
 
 /**
  * Metadata returned after setting a value.
+ *
+ * @property expiresAt - Timestamp (ms) when the value will expire.
+ * @property keyVersion - Optional version of the encryption key used.
+ * @property createdAt - Timestamp (ms) when the value was created.
+ * @property updatedAt - Timestamp (ms) when the value was last updated.
  */
-export type SetReturnType = { expiresAt: number, keyVersion?: number }
+export type SetReturnType = {
+  /** expiresAt - Timestamp (ms) when the value will expire. */
+  expiresAt: number,
+  /** keyVersion - Optional version of the encryption key used. */
+  keyVersion?: number,
+  /** createdAt - Timestamp (ms) when the value was created. */
+  createdAt: number,
+  /** updatedAt - Timestamp (ms) when the value was last updated. */
+  updatedAt: number
+}
 
 /**
  * An item as returned from storage.

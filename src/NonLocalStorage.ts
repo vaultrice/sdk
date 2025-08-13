@@ -104,7 +104,9 @@ export default class NonLocalStorage extends WebSocketFunctions {
 
     return {
       expiresAt: item?.expiresAt as number,
-      keyVersion: item?.keyVersion as number ?? undefined
+      keyVersion: item?.keyVersion as number ?? undefined,
+      createdAt: item?.createdAt as number,
+      updatedAt: item?.updatedAt as number
     }
   }
 
@@ -146,7 +148,9 @@ export default class NonLocalStorage extends WebSocketFunctions {
     return Object.keys(r).reduce<SetItemsType>((prev, name) => {
       prev[name] = {
         expiresAt: (r[name] as { expiresAt?: number })?.expiresAt ?? 0,
-        keyVersion: (r[name] as { keyVersion?: number })?.keyVersion ?? undefined
+        keyVersion: (r[name] as { keyVersion?: number })?.keyVersion ?? undefined,
+        createdAt: (r[name] as { createdAt?: number })?.createdAt ?? 0,
+        updatedAt: (r[name] as { updatedAt?: number })?.updatedAt ?? 0
       }
       return prev
     }, {})
@@ -191,7 +195,9 @@ export default class NonLocalStorage extends WebSocketFunctions {
     return {
       value,
       expiresAt: item.expiresAt as number,
-      keyVersion: item.keyVersion as number
+      keyVersion: item.keyVersion as number,
+      createdAt: item.createdAt as number,
+      updatedAt: item.updatedAt as number
     }
   }
 
@@ -234,7 +240,9 @@ export default class NonLocalStorage extends WebSocketFunctions {
       result[name] = {
         value,
         expiresAt: item.expiresAt as number,
-        keyVersion: item.keyVersion as number
+        keyVersion: item.keyVersion as number,
+        createdAt: item.createdAt as number,
+        updatedAt: item.updatedAt as number
       }
     }
 
@@ -291,7 +299,9 @@ export default class NonLocalStorage extends WebSocketFunctions {
       result[name] = {
         value,
         expiresAt: item.expiresAt as number,
-        keyVersion: item.keyVersion as number ?? undefined
+        keyVersion: item.keyVersion as number ?? undefined,
+        createdAt: item.createdAt as number,
+        updatedAt: item.updatedAt as number
       }
     }
 
@@ -348,7 +358,9 @@ export default class NonLocalStorage extends WebSocketFunctions {
     return {
       value: item?.value as number,
       expiresAt: item?.expiresAt as number,
-      keyVersion: item?.keyVersion as number ?? undefined
+      keyVersion: item?.keyVersion as number ?? undefined,
+      createdAt: item?.createdAt as number,
+      updatedAt: item?.updatedAt as number
     }
   }
 
@@ -372,7 +384,9 @@ export default class NonLocalStorage extends WebSocketFunctions {
     return {
       value: item?.value as number,
       expiresAt: item?.expiresAt as number,
-      keyVersion: item?.keyVersion as number ?? undefined
+      keyVersion: item?.keyVersion as number ?? undefined,
+      createdAt: item?.createdAt as number,
+      updatedAt: item?.updatedAt as number
     }
   }
 

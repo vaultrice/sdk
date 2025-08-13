@@ -79,7 +79,7 @@ new NonLocalStorage(credentials, options?)
 
 ```ts
 await nls.setItem('key', 'value')
-await nls.getItem('key') // returns { value, expiresAt }
+await nls.getItem('key') // returns { value, expiresAt, createdAt, updatedAt }
 await nls.setItems({ key1: { value: 'v1' }, key2: { value: 'v2' } })
 await nls.getItems(['key1', 'key2'])
 await nls.getAllKeys()

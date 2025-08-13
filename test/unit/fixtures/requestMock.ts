@@ -99,10 +99,14 @@ export default () => {
         objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName] = body
         objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName].expiresAt = Date.now() + (objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName]?.ttl || 10000)
         objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName].keyVersion = keyVersion
+        objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName].createdAt ||= Date.now()
+        objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName].updatedAt = Date.now()
         send({ event: 'setItem', payload: { prop: propName, ...objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName] } })
         return {
           expiresAt: (body as any)?.expiresAt,
-          keyVersion
+          keyVersion,
+          createdAt: (body as any)?.createdAt,
+          updatedAt: (body as any)?.updatedAt
         }
       }
 
@@ -119,11 +123,15 @@ export default () => {
         }
         objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName].expiresAt = Date.now() + (objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName]?.ttl || 10000)
         objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName].keyVersion = keyVersion
+        objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName].createdAt ||= Date.now()
+        objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName].updatedAt = Date.now()
         send({ event: 'setItem', payload: { prop: propName, ...objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName] } })
         return {
           value: objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName]?.value,
           expiresAt: objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName]?.expiresAt,
-          keyVersion
+          keyVersion,
+          createdAt: objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName]?.createdAt,
+          updatedAt: objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName]?.updatedAt
         }
       }
 
@@ -140,11 +148,15 @@ export default () => {
         }
         objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName].expiresAt = Date.now() + (objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName]?.ttl || 10000)
         objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName].keyVersion = keyVersion
+        objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName].createdAt ||= Date.now()
+        objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName].updatedAt = Date.now()
         send({ event: 'setItem', payload: { prop: propName, ...objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName] } })
         return {
           value: objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName]?.value,
           expiresAt: objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName]?.expiresAt,
-          keyVersion
+          keyVersion,
+          createdAt: objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName]?.createdAt,
+          updatedAt: objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName]?.updatedAt
         }
       }
 
@@ -164,7 +176,9 @@ export default () => {
             }
             r[name] = {
               expiresAt,
-              keyVersion
+              keyVersion,
+              createdAt: objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][name].createdAt || Date.now(),
+              updatedAt: Date.now()
             }
             send({ event: 'setItem', payload: { prop: name, value: objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][name].value, ...r[name] } })
           })

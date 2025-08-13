@@ -105,13 +105,19 @@ describe(`NonLocalStorage WS (${process.env.MODE})`, () => {
       expect(setItemEvts1[0]).to.have.property('prop', 'my-prop')
       expect(setItemEvts1[0]).to.have.property('value', 'my-value')
       expect(setItemEvts1[0]).to.have.property('expiresAt')
+      expect(setItemEvts1[0]).to.have.property('createdAt')
+      expect(setItemEvts1[0]).to.have.property('updatedAt')
       expect(setItemEvts1[1]).to.have.property('prop', 'my-prop-2')
       expect(setItemEvts1[1]).to.have.property('value', 'my-value-2')
       expect(setItemEvts1[1]).to.have.property('expiresAt')
+      expect(setItemEvts1[1]).to.have.property('createdAt')
+      expect(setItemEvts1[1]).to.have.property('updatedAt')
       expect(setItemEvts2).to.have.lengthOf(1)
       expect(setItemEvts2[0]).to.have.property('prop', 'my-prop-2')
       expect(setItemEvts2[0]).to.have.property('value', 'my-value-2')
       expect(setItemEvts2[0]).to.have.property('expiresAt')
+      expect(setItemEvts2[0]).to.have.property('createdAt')
+      expect(setItemEvts2[0]).to.have.property('updatedAt')
 
       const removeItemEvts1: string[] = []
       nls.on('removeItem', (m) => {
