@@ -131,6 +131,13 @@ export default () => {
       ws[roomKey][this.id][apiKey] = new WebSocket('ws://localhost:1234')
       this[WEBSOCKET] = ws[roomKey][this.id][apiKey]
 
+      this[WEBSOCKET].addEventListener('open', () => {
+        this.isConnected = true
+      }, { once: true })
+      this[WEBSOCKET].addEventListener('close', () => {
+        this.isConnected = false
+      }, { once: true })
+
       conns[roomKey] ||= {}
       conns[roomKey][this.id] ||= []
 

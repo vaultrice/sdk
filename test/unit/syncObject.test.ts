@@ -287,10 +287,12 @@ describe('SyncObject', () => {
 
       // Set value in first instance
       so1['syncTest'] = 'synced-value'
+      so1['syncTest2'] = 'synced-value-2'
       await wait(10)
 
       // Should appear in second instance
       expect(so2['syncTest']).to.eql('synced-value')
+      expect(so2['syncTest2']).to.eql('synced-value-2')
 
       // Modify in second instance
       so2['syncTest'] = 'modified-value'
@@ -301,10 +303,12 @@ describe('SyncObject', () => {
 
       // Remove from first instance
       so1['syncTest'] = undefined
+      delete so1['syncTest2']
       await wait(10)
 
       // Should be removed from second instance
       expect(so2['syncTest']).to.eql(undefined)
+      expect(so2['syncTest2']).to.eql(undefined)
     })
   })
 

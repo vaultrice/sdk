@@ -49,6 +49,7 @@ console.log(item?.value) // 'value'
 | TTL support                     | Auto-expiry per key or object                            |
 | Event system                    | Listen to changes, removals, messages                    |
 | SyncObject API                  | Reactive object that syncs automatically                 |
+| Offline-first API               | `createOfflineSyncObject` for resilient offline support  |
 | Full TypeScript support         | Strong typings, interfaces, autocompletion               |
 | Works in browsers and Node.js   | Cross-platform by design                                 |
 
@@ -434,6 +435,85 @@ This allows you to handle token renewal or notify users before authentication
 
 ---
 
+## 📴 Offline-First SyncObject
+
+Vaultrice also supports **offline-first workflows** via `createOfflineSyncObject`.
+This combines the convenience of `SyncObject` with the resilience of local durability.
+
+```ts
+import { createOfflineSyncObject } from '@vaultrice/sdk'
+
+interface Notes {
+  [id: string]: { text: string, updatedAt: number }
+}
+
+const notes = await createOfflineSyncObject<Notes>(
+  { projectId, apiKey, apiSecret },
+  { id: 'user-notes', ttl: 24 * 60 * 60 * 1000 } // 24h expiry
+)
+
+notes['note1'] = { text: 'Write blog post ✍️', updatedAt: Date.now() }
+// Works offline like localStorage — syncs automatically when online
+```
+
+✨ Features:
+
+* **Local durability** — Data is stored while offline, synced later.
+* **Outbox queue** — Pending writes retried until delivered.
+* **Conflict resolution** — Custom strategy possible:
+
+```ts
+resolveConflict: (local, remote) =>
+  (local.updatedAt ?? 0) > (remote.updatedAt ?? 0) ? local : remote
+```
+
+* **Event transfer** — Offline event listeners are reattached on reconnect.
+* **TTL / expiration sweep** — Automatic cleanup locally and optionally remotely.
+
+---
+
+### 🌐 Handling Network Flakiness
+
+* Outbox operations that fail remain queued and are retried.
+* Failures are logged, not fatal.
+* Automatic reconnect loop with configurable delay:
+
+```ts
+const obj = await createOfflineSyncObject(
+  { projectId, apiKey, apiSecret },
+  { reconnectDelay: 3000 } // retry every 3s
+)
+```
+
+This makes it safe on mobile, airplane mode, or unstable networks.
+
+---
+
+## 📍 Durable Object Location Strategy
+
+Vaultrice uses Cloudflare Durable Objects. The **first successful request** for an ID fixes its "home" region:
+
+* All subsequent writes for that ID go to that region.
+* Useful for data residency & latency considerations.
+* To enforce regions, initialize from the right region first:
+
+```ts
+const prefsUS = await createSyncObject(credentials, 'prefs-us') // US region
+const prefsEU = await createSyncObject(credentials, 'prefs-eu') // EU region
+```
+
+---
+
+## 📦 Which API Should I Use?
+
+| Use Case                       | Recommended API           |
+| ------------------------------ | ------------------------- |
+| Simple, key-based storage      | `NonLocalStorage`         |
+| Real-time object sync          | `createSyncObject`        |
+| Works offline with auto-resync | `createOfflineSyncObject` |
+
+---
+
 ## 🚀 Real-World Examples
 
 ### Collaborative Text Editor (Full SyncObject)
@@ -613,27 +693,18 @@ game.on('presence:leave', (conn) => {
 })
 ```
 
-The key improvements with this implementation:
+### Offline usage with OfflineSyncObject
 
-1. **Full Feature Parity**: SyncObject now has all the capabilities of NonLocalStorage
-2. **Automatic Presence Management**: `joinedConnections` is automatically updated via events
-3. **Simplified API**: Direct method access (`obj.join()`, `obj.send()`) instead of going through the underlying NLS instance
-4. **Protected Properties**: All reserved properties are properly protected
-5. **Live Updates**: The `joinedConnections` property updates in real-time as users join/leave
-6. **Type Safety**: Full TypeScript support for all new methods and properties
+(Keep existing collaborative text editor and real-time gaming examples.)
+You may also add an **offline-first note-taking app** example:
 
-This makes SyncObject a complete solution for real-time collaborative applications while maintaining the simple object-like interface that makes it appealing.
+```ts
+interface Note { text: string; updatedAt: number }
+const notes = await createOfflineSyncObject<Record<string, Note>>(credentials, 'notes')
 
----
-
-> **How Durable Object Location Is Determined**
->
-> When you create a Vaultrice `NonLocalStorage` instance, Vaultrice automatically places the associated Durable Object in the Cloudflare region closest to the location of that **first successful request**. This “home” location is fixed for the lifetime of that object and is where all write operations will be routed.
->
-> **Implications for Developers:**
->
-> * If you expect most of your traffic for this `id` to come from a specific region, ensure the first initialization request originates from that region to minimize write latency.
-> * For **regional or jurisdiction-specific IDs**, you should perform the first write from a representative client/server in the target region to ensure the object’s home is set appropriately.
+notes['n1'] = { text: 'Buy milk', updatedAt: Date.now() } // Works offline
+// …later, once online, syncs automatically with other devices
+```
 
 ---
 

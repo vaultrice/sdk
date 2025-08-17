@@ -6,6 +6,23 @@ import {
   JoinedConnections
 } from './types'
 
+export const reservedProps = [
+  'id',
+  'on',
+  'off',
+  'join',
+  'leave',
+  'send',
+  'joinedConnections',
+  'useAccessToken',
+  'onAccessTokenExpiring',
+  'offAccessTokenExpiring',
+  'connect',
+  'disconnect',
+  'isConnected',
+  '__getNonLocalStorage'
+]
+
 /**
  * Create a proxy object that syncs its properties to NonLocalStorage.
  *
@@ -26,6 +43,8 @@ export default async function createSyncObject<T extends object> (
     typeof idOrOptions === 'string'
       ? new NonLocalStorage(credentials, idOrOptions)
       : new NonLocalStorage(credentials, idOrOptions)
+
+  if ((nls as any).isGettingAccessToken) await (nls as any).isGettingAccessToken
 
   const ttl = (nls as any).ttl || 60 * 60 * 1000
 
@@ -140,22 +159,6 @@ export default async function createSyncObject<T extends object> (
   const boundConnect = nls.connect.bind(nls)
   const boundDisconnect = nls.disconnect.bind(nls)
 
-  const reservedProps = [
-    'id',
-    'on',
-    'off',
-    'join',
-    'leave',
-    'send',
-    'joinedConnections',
-    'useAccessToken',
-    'onAccessTokenExpiring',
-    'offAccessTokenExpiring',
-    'connect',
-    'disconnect',
-    'isConnected'
-  ]
-
   const handler: ProxyHandler<T & SyncObjectMeta> = {
     set (_, prop: string, value) {
       // Prevent overwriting special properties
@@ -164,29 +167,25 @@ export default async function createSyncObject<T extends object> (
       }
 
       if (value === undefined) {
-        nls.removeItem(prop)
+        if (!nls.isConnected) throw new Error('[SyncObject] removeItem not possible because not connected!')
+        nls.removeItem(prop).catch((err) => {
+          (nls as any).logger.log('error', `[SyncObject] removeItem failed for "${prop}": ${err.message || err.code || err.name}`)
+        })
         delete (store as any)[prop]
         return true
       }
       if (typeof value === 'number' && isNaN(value)) value = 0
-      nls.setItem(prop, value)
+      if (!nls.isConnected) throw new Error('[SyncObject] setItem not possible because not connected!')
+      nls.setItem(prop, value).catch((err) => {
+        (nls as any).logger.log('error', `[SyncObject] setItem failed for "${prop}": ${err.message || err.code || err.name}`)
+      })
       ;(store as any)[prop] = { value, expiresAt: Date.now() + ttl }
       return true
     },
-    get (_, prop: string | symbol) {
-      if (prop === 'id') return nls.id
-      if (prop === 'on') return boundOn
-      if (prop === 'off') return boundOff
-      if (prop === 'join') return boundJoin
-      if (prop === 'leave') return boundLeave
-      if (prop === 'send') return boundSend
-      if (prop === 'joinedConnections') return joinedConnections
-      if (prop === 'useAccessToken') return boundUseAccessToken
-      if (prop === 'onAccessTokenExpiring') return boundOnAccessTokenExpiring
-      if (prop === 'offAccessTokenExpiring') return boundOffAccessTokenExpiring
-      if (prop === 'connect') return boundConnect
-      if (prop === 'disconnect') return boundDisconnect
-      if (prop === 'isConnected') return nls.isConnected
+    get (_, prop: string | symbol, receiver) {
+      if (reservedProps.includes(prop as string)) {
+        return Reflect.get(_, prop, receiver)
+      }
 
       const item = (store as any)[prop] as ItemType
       if (!item) return undefined
@@ -246,6 +245,17 @@ export default async function createSyncObject<T extends object> (
         writable: true,
         value: item.value
       }
+    },
+    deleteProperty (_, prop: string | symbol) {
+      if (reservedProps.indexOf(prop as string) > -1) {
+        throw new Error(`Cannot delete reserved property '${String(prop)}'`)
+      }
+      if (!nls.isConnected) throw new Error('[SyncObject] removeItem not possible because not connected!')
+      nls.removeItem(prop as string).catch((err) => {
+        (nls as any).logger.log('error', `[SyncObject] removeItem failed for "${prop as string}": ${err.message || err.code || err.name}`)
+      })
+      delete (store as any)[prop]
+      return true
     }
   }
 
@@ -340,6 +350,13 @@ export default async function createSyncObject<T extends object> (
     configurable: false,
     enumerable: true,
     get: () => nls.isConnected
+  })
+
+  Object.defineProperty(base, '__getNonLocalStorage', {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: () => nls
   })
 
   // cast the Proxy to T & SyncObjectMeta

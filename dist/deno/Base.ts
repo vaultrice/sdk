@@ -13,7 +13,7 @@ import { CREDENTIALS, ENCRYPTION_SETTINGS, PREVIOUS_ENCRYPTION_SETTINGS, ACCESS_
  * @internal
  * @returns A UUID-based string ID.
  */
-function getId (projectId: string, className: string) {
+export function getId (projectId: string, className: string) {
   // if no id provided, try to check if there is one in the real local storage...
   const localId = getLocalId(projectId, className)
   if (localId) return localId
@@ -22,7 +22,7 @@ function getId (projectId: string, className: string) {
 }
 
 /** @internal */
-const DEFAULT_DURABLE_CACHE_CLASS = '_undefined_'
+export const DEFAULT_DURABLE_CACHE_CLASS = '_undefined_'
 
 /**
  * Base class providing core API functionality including authentication,

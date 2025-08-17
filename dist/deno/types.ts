@@ -267,3 +267,152 @@ export interface SyncObjectMeta {
    */
   readonly isConnected: boolean
 }
+
+/**
+ * Interface for pluggable storage adapters.
+ *
+ * @remarks
+ * Implement this interface to provide custom storage backends for offline sync.
+ * Adapters should handle serialization and deserialization of values.
+ *
+ * @example
+ * ```typescript
+ * class MyAdapter implements StorageAdapter {
+ *   async get(key: string): Promise<any | null> { ... }
+ *   async set(key: string, value: any): Promise<void> { ... }
+ *   async remove(key: string): Promise<void> { ... }
+ *   async getAll(): Promise<Record<string, any>> { ... }
+ * }
+ * ```
+ */
+export interface StorageAdapter {
+  /**
+   * Retrieve a value by key.
+   * @param key - The key to look up.
+   * @returns The value, or null if not found.
+   */
+  get(key: string): Promise<any | null>
+  /**
+   * Store a value by key.
+   * @param key - The key to store under.
+   * @param value - The value to store.
+   */
+  set(key: string, value: any): Promise<void>
+  /**
+   * Remove a value by key.
+   * @param key - The key to remove.
+   */
+  remove(key: string): Promise<void>
+  /**
+   * Retrieve all key-value pairs.
+   * @returns An object mapping keys to values.
+   */
+  getAll(): Promise<Record<string, any>>
+}
+
+/**
+ * Options for creating an offline sync object.
+ *
+ * @remarks
+ * Use this interface to configure offline-first behavior, including storage backend and conflict resolution.
+ *
+ * @property storage - The storage adapter to use for local persistence.
+ * @property resolveConflict - Optional function to resolve conflicts between local and remote items.
+ *
+ * @example
+ * ```typescript
+ * const offlineSync = await createOfflineSyncObject(credentials, {
+ *   id: 'my-id',
+ *   storage: new LocalStorageAdapter({ projectId, className, id }),
+ *   resolveConflict: (local, remote) => {
+ *     // Custom merge logic
+ *     return local.updatedAt > remote.updatedAt ? local : remote
+ *   }
+ * })
+ * ```
+ */
+export interface OfflineSyncOptions extends InstanceOptions {
+  /**
+   * The storage adapter to use for local persistence.
+   * Can be an instance or a factory function/constructor.
+   * If not provided, a localStorage (if available) based adapter will be used automatically.
+   *
+   * @remarks
+   * The default localStorage adapter uses browser localStorage (if available) or an in-memory fallback.
+   *
+   * @example
+   * ```typescript
+   * // Use default localStorage
+   * const offlineSync = await createOfflineSyncObject(credentials)
+   *
+   * // Provide a custom adapter
+   * const offlineSync = await createOfflineSyncObject(credentials, {
+   *   storage: new MyCustomAdapter({ projectId, class: 'myClass', id: 'myId' })
+   * })
+   * ```
+   */
+  storage?:
+    | (new (options: { projectId: string; class?: string; id?: string; ttl?: number }) => StorageAdapter)
+    | ((options: { projectId: string; class?: string; id?: string; ttl?: number }) => StorageAdapter)
+  /**
+   * Optional function to resolve conflicts between local and remote items during synchronization.
+   * If provided, this function will be called with the local and remote versions of an item.
+   * The function should return the resolved item to be stored.
+   *
+   * @param local - The local item from offline storage.
+   * @param remote - The remote item from the server.
+   * @returns The resolved item to use.
+   *
+   * @example
+   * ```typescript
+   * resolveConflict: (local, remote) => {
+   *   // Prefer the item with the latest update
+   *   return local.updatedAt > remote.updatedAt ? local : remote
+   * }
+   * ```
+   */
+  resolveConflict?: (
+    local: ItemType,
+    remote: ItemType
+  ) => ItemType
+
+  /**
+   * Delay in milliseconds between automatic reconnect attempts when offline.
+   * Defaults to 5000 ms if not specified.
+   *
+   * @default 5000
+   *
+   * @example
+   * ```typescript
+   * reconnectDelay: 10000 // Try to reconnect every 10 seconds
+   * ```
+   */
+  reconnectDelay?: number
+
+  /**
+   * Interval in milliseconds for periodic expiration sweep.
+   * Expired items will be removed from local storage at this interval.
+   * Defaults to 15 minutes (900000 ms).
+   *
+   * @default 900000
+   *
+   * @example
+   * ```typescript
+   * expirationSweepInterval: 60000 // Sweep every minute
+   * ```
+   */
+  expirationSweepInterval?: number
+
+  /**
+   * If true, expired items will be actively deleted from the remote SyncObject
+   * during synchronization. By default, expired remote items are ignored but not deleted.
+   *
+   * @default false
+   *
+   * @example
+   * ```typescript
+   * cleanupExpiredRemote: true // Actively delete expired remote items
+   * ```
+   */
+  cleanupExpiredRemote?: boolean
+}
