@@ -26,7 +26,6 @@ import { NonLocalStorage } from '@vaultrice/sdk'
 
 const nls = new NonLocalStorage({
   projectId: 'your-project-id',
-  apiKey: 'your-api-key',
   apiSecret: 'your-api-secret'
 }, 'your-id') // optional unique object ID
 
@@ -49,7 +48,8 @@ console.log(item?.value) // 'value'
 | TTL support                     | Auto-expiry per key or object                            |
 | Event system                    | Listen to changes, removals, messages                    |
 | SyncObject API                  | Reactive object that syncs automatically                 |
-| Offline-first API               | `createOfflineSyncObject` for resilient offline support  |
+| **Offline-first API**           | `createOfflineNonLocalStorage`, `createOfflineSyncObject`|
+| Custom storage adapters         | Use IndexedDB, SQLite, or any custom backend (default: LocalStorage)             |
 | Full TypeScript support         | Strong typings, interfaces, autocompletion               |
 | Works in browsers and Node.js   | Cross-platform by design                                 |
 
@@ -435,57 +435,91 @@ This allows you to handle token renewal or notify users before authentication
 
 ---
 
-## 📴 Offline-First SyncObject
+## 📴 Offline-First APIs
 
-Vaultrice also supports **offline-first workflows** via `createOfflineSyncObject`.
-This combines the convenience of `SyncObject` with the resilience of local durability.
+Vaultrice now supports **offline-first** storage and sync, making your app resilient to network interruptions.
+
+### OfflineNonLocalStorage
+
+A drop-in replacement for `NonLocalStorage` that works offline and automatically syncs changes when reconnected.
+
+```ts
+import { createOfflineNonLocalStorage } from '@vaultrice/sdk'
+
+const nls = await createOfflineNonLocalStorage(
+  { projectId: 'your-project-id', apiSecret: 'your-api-secret' },
+  { id: 'your-id', ttl: 60000 }
+)
+
+await nls.setItem('key', 'value') // Works offline!
+const item = await nls.getItem('key')
+console.log(item?.value) // 'value'
+```
+
+- **Local-first:** Reads/writes use local storage when offline.
+- **Automatic sync:** Queues changes and syncs with the server when online.
+- **Conflict resolution:** Last-write-wins by default, customizable.
+- **Custom storage adapters:** Use your own storage backend (IndexedDB, SQLite, etc).
+
+### OfflineSyncObject
+
+A reactive object that syncs properties locally and remotely, with offline support.
 
 ```ts
 import { createOfflineSyncObject } from '@vaultrice/sdk'
 
-interface Notes {
-  [id: string]: { text: string, updatedAt: number }
-}
-
-const notes = await createOfflineSyncObject<Notes>(
-  { projectId, apiKey, apiSecret },
-  { id: 'user-notes', ttl: 24 * 60 * 60 * 1000 } // 24h expiry
-)
-
-notes['note1'] = { text: 'Write blog post ✍️', updatedAt: Date.now() }
-// Works offline like localStorage — syncs automatically when online
-```
-
-✨ Features:
-
-* **Local durability** — Data is stored while offline, synced later.
-* **Outbox queue** — Pending writes retried until delivered.
-* **Conflict resolution** — Custom strategy possible:
-
-```ts
-resolveConflict: (local, remote) =>
-  (local.updatedAt ?? 0) > (remote.updatedAt ?? 0) ? local : remote
-```
-
-* **Event transfer** — Offline event listeners are reattached on reconnect.
-* **TTL / expiration sweep** — Automatic cleanup locally and optionally remotely.
-
----
-
-### 🌐 Handling Network Flakiness
-
-* Outbox operations that fail remain queued and are retried.
-* Failures are logged, not fatal.
-* Automatic reconnect loop with configurable delay:
-
-```ts
 const obj = await createOfflineSyncObject(
-  { projectId, apiKey, apiSecret },
-  { reconnectDelay: 3000 } // retry every 3s
+  { projectId: 'your-project-id', apiSecret: 'your-api-secret' },
+  { id: 'your-id', ttl: 60000 }
 )
+
+obj.foo = 'bar' // Updates locally and syncs when online
+console.log(obj.foo) // 'bar'
 ```
+
+- **Proxy-based:** Use like a normal JS object.
+- **Events:** Listen for changes, removals, presence, and messages.
+- **Presence:** Track who’s online, join/leave notifications.
+- **Works offline:** Changes are queued and synchronized automatically.
+
 
 This makes it safe on mobile, airplane mode, or unstable networks.
+
+
+### 🛠️ Custom Storage Adapter
+
+You can inject your own storage backend for offline mode (for example, IndexedDB, SQLite, or any custom implementation).
+
+Pass your adapter via the `storage` option when creating an offline instance:
+
+```ts
+import { createOfflineNonLocalStorage } from '@vaultrice/sdk'
+
+// Example: a minimal custom adapter
+const myAdapter = {
+  async get(key) { /* ... */ },
+  async set(key, value) { /* ... */ },
+  async remove(key) { /* ... */ },
+  async getAll() { /* ... */ }
+}
+
+const nls = await createOfflineNonLocalStorage(
+  { projectId: 'your-project-id', apiSecret: 'your-api-secret' },
+  { id: 'your-id', storage: myAdapter }
+)
+
+// Now all offline reads/writes use your adapter!
+await nls.setItem('foo', 'bar')
+```
+
+**Requirements:**  
+Your adapter should implement these async methods:  
+- `get(key): Promise<any>`
+- `set(key, value): Promise<void>`
+- `remove(key): Promise<void>`
+- `getAll(): Promise<Record<string, any>>`
+
+This works for both `createOfflineNonLocalStorage` and
 
 ---
 

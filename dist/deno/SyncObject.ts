@@ -20,7 +20,8 @@ export const reservedProps = [
   'connect',
   'disconnect',
   'isConnected',
-  '__getNonLocalStorage'
+  '__getNonLocalStorage',
+  '__getInternalMemoryStore'
 ]
 
 /**
@@ -357,6 +358,13 @@ export default async function createSyncObject<T extends object> (
     enumerable: false,
     writable: false,
     value: () => nls
+  })
+
+  Object.defineProperty(base, '__getInternalMemoryStore', {
+    configurable: false,
+    enumerable: false,
+    writable: false,
+    value: () => store
   })
 
   // cast the Proxy to T & SyncObjectMeta

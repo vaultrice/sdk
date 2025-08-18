@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - not released yet
 
+## [0.9.12](https://github.com/vaultrice/sdk/compare/v0.9.11...v0.9.12) - 2025-08-19
+
+- **OfflineNonLocalStorage**: New API for offline-first key-value storage with automatic sync when reconnected.
+- **OfflineSyncObject**: New API for offline-first reactive object sync, supporting local changes and automatic server sync.
+- **Custom Storage Adapter Support**: You can now inject your own storage backend (e.g. IndexedDB, SQLite) for offline mode via the `storage` option.
+
+
 ## [0.9.11](https://github.com/vaultrice/sdk/compare/v0.9.10...v0.9.11) - 2025-08-13
 
 - return createdAt and updatedAt for items

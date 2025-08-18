@@ -124,12 +124,19 @@ export default class WebSocketFunctions extends Base {
    * @throws Error if encryption is configured but getEncryptionSettings() not called.
    *
    * @remarks
-   * Messages are automatically encrypted if encryption is configured.
-   * WebSocket transport is preferred for real-time delivery, but HTTP can be used as fallback.
+   * - If `transport: 'ws'` (WebSocket), the message is delivered to other clients but **not echoed back to the sender**. The sender will not receive their own message via `on('message')`.
+   * - If `transport: 'http'`, the message is delivered to all clients **including the sender**. The sender will receive their own message via `on('message')`.
+   * - Messages are automatically encrypted if encryption is configured.
+   * - WebSocket transport is preferred for real-time delivery, but HTTP can be used as fallback.
    *
    * @example
    * ```typescript
-   * await instance.send({ type: 'chat', message: 'Hello everyone!' });
+   * // Message sent via WebSocket (not received by sender)
+   * await instance.send({ type: 'chat', message: 'Hello!' });
+   *
+   * // Message sent via HTTP (received by sender)
+   * await instance.send({ type: 'chat', message: 'Hello!' }, { transport: 'http' });
+   *
    * // Send via HTTP instead of WebSocket
    * await instance.send({ data: 'important' }, { transport: 'http' });
    * ```
@@ -644,11 +651,13 @@ export default class WebSocketFunctions extends Base {
     }
     const queryParams = new URLSearchParams(qs as any)
     const ws = this[WEBSOCKET] = new WebSocket(`${wsBasePath}/project/${this[CREDENTIALS].projectId}/ws/${this.class}/${this.id}?${queryParams}`)
+    this.logger.log('info', 'initializing WebSocket connection...')
 
     ws.addEventListener('open', () => {
       this.isConnected = true
     }, { once: true })
-    ws.addEventListener('close', () => {
+    ws.addEventListener('close', (arg) => {
+      console.log('closed', arg)
       this.isConnected = false
     }, { once: true })
 
@@ -667,7 +676,8 @@ export default class WebSocketFunctions extends Base {
     //   `${wsBasePath}/project/${this[CREDENTIALS].projectId}/ws/${this.class}/${this.id}`,
     //   protocols
     // )
-    ws.addEventListener('close', () => {
+    ws.addEventListener('close', (arg) => {
+      console.log('closed 2', arg)
       delete this[WEBSOCKET]
       const wasJoined = this.hasJoined
       const lastJoinData = this.lastJoinData

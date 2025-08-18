@@ -6,6 +6,7 @@
 
 // Also provide default exports for compatibility
 export { default as NonLocalStorage } from './NonLocalStorage'
+export { default as createOfflineNonLocalStorage } from './OfflineNonLocalStorage'
 export { default as createSyncObject } from './SyncObject'
 export { default as createOfflineSyncObject } from './OfflineSyncObject'
 

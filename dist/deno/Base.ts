@@ -227,7 +227,7 @@ export default class Base {
 
     if (!this[CREDENTIALS].accessToken) {
       this.isGettingAccessToken = this.getAccessToken()
-      this.isGettingAccessToken.then(() => { this.isGettingAccessToken = undefined }, () => { this.isGettingAccessToken = undefined })
+      this.isGettingAccessToken.then(() => { this.isGettingAccessToken = undefined }).catch(() => { this.isGettingAccessToken = undefined })
     }
   }
 

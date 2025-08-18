@@ -1,116 +1,14 @@
 import {
   OfflineSyncOptions,
   SyncObjectMeta,
-  StorageAdapter,
-  LogLevel
+  LogLevel,
+  ItemType
 } from './types'
-import { LocalStorageAdapter } from './LocalStorageAdapter'
 import { DEFAULT_DURABLE_CACHE_CLASS, getId } from './Base'
 import createSyncObject, { reservedProps } from './SyncObject'
 import NonLocalStorage from './NonLocalStorage'
-import getLogger, { Logger } from './logger'
-
-/**
- * Represents an operation to be performed on the outbox.
- * @internal
- */
-type OutboxOp =
-  | { op: 'set'; prop: string; value: any }
-  | { op: 'remove'; prop: string }
-
-/** @internal */
-const DEFAULT_TTL = 1 * 60 * 60 * 1000 // 1h
-/** @internal */
-const DEFAULT_EXPIRATION_SWEEP_INTERVAL = 15 * 60 * 1000 // 15min
-
-/**
- * Checks if a metadata object is expired.
- * @param meta - The metadata object to check.
- * @returns True if expired, false otherwise.
- * @internal
- */
-function isExpired (meta: any): boolean {
-  return meta && typeof meta.expiresAt === 'number' && Date.now() >= meta.expiresAt
-}
-
-/**
- * Safely removes a key from the storage adapter.
- * @param storage - The storage adapter.
- * @param key - The key to remove.
- * @internal
- */
-async function safeStorageRemove (storage: StorageAdapter, key: string): Promise<void> {
-  try { await storage.remove(key) } catch (e) { /* ignore */ }
-}
-
-/**
- * Safely sets a key-value pair in the storage adapter.
- * @param storage - The storage adapter.
- * @param key - The key to set.
- * @param value - The value to set.
- * @internal
- */
-async function safeStorageSet (storage: StorageAdapter, key: string, value: any): Promise<void> {
-  try { await storage.set(key, value) } catch (e) { /* ignore */ }
-}
-
-/**
- * Processes the outbox queue, synchronizing changes with the remote sync object.
- * Handles conflict resolution, expiration, and error logging.
- * @param syncObject - The remote sync object.
- * @param options - Offline sync options.
- * @param storage - The storage adapter.
- * @param outbox - The outbox queue.
- * @param logger - Logger instance.
- * @internal
- */
-async function processOutbox (
-  syncObject: SyncObjectMeta,
-  options: OfflineSyncOptions,
-  storage: StorageAdapter,
-  outbox: OutboxOp[],
-  logger: Logger
-): Promise<void> {
-  while (outbox.length > 0) {
-    const op = outbox[0]
-    try {
-      if (op.op === 'set') {
-        const localItem = op.value
-        if (isExpired(localItem)) {
-          logger.log('info', `Skipping expired item during outbox sync: ${op.prop}`)
-          outbox.shift()
-          continue
-        }
-        const remoteItem = (syncObject as any)[op.prop]
-        let resolved = localItem
-        if (remoteItem) {
-          if (options.resolveConflict && JSON.stringify(localItem?.value) !== JSON.stringify(remoteItem?.value)) {
-            logger.log('info', `Conflict detected for "${op.prop}", resolving...`)
-            resolved = options.resolveConflict(localItem, remoteItem)
-          } else {
-            logger.log('info', `Comparing timestamps for "${op.prop}" to resolve latest value`)
-            resolved = (localItem.updatedAt ?? localItem.createdAt ?? 0) >
-              (remoteItem.updatedAt ?? remoteItem.createdAt ?? 0)
-              ? localItem
-              : remoteItem
-          }
-        } else {
-          logger.log('info', `No remote value for "${op.prop}", using local value`)
-        }
-        logger.log('info', `Synchronizing "${op.prop}" to remote`)
-        ;(syncObject as any)[op.prop] = resolved
-      } else if (op.op === 'remove') {
-        logger.log('info', `Removing "${op.prop}" from remote during outbox sync`)
-        ;(syncObject as any)[op.prop] = undefined
-      }
-      outbox.shift()
-    } catch (e: any) {
-      logger.log('error', `Failed to sync operation, will retry on next connection (${e.message || e.code || e.name}):\n${JSON.stringify(op, null, 2)}`)
-      break
-    }
-  }
-  await safeStorageSet(storage, '_outbox', outbox)
-}
+import getLogger from './logger'
+import { getStorage, DEFAULT_TTL, OutboxOp, isExpired, safeStorageRemove, safeStorageSet, isConnectionError, processOutbox, afterProcessOutbox, startSweep, stopSweep } from './offlineHelpers'
 
 /**
  * Creates an offline-capable sync object that transparently synchronizes with a remote sync object when online.
@@ -149,20 +47,7 @@ export default async function createOfflineSyncObject<T extends object> (
 
   const logger = getLogger(logLevel)
   const storageOptions = { projectId: credentials.projectId, class: className, id, ttl }
-  let storage: StorageAdapter | undefined
-  if (options.storage) {
-    if (typeof options.storage === 'function') {
-      const isClass = options.storage.prototype && options.storage.prototype.constructor === options.storage
-      storage = isClass
-        ? new (options.storage as new (options: any) => StorageAdapter)(storageOptions)
-        : (options.storage as (options: any) => StorageAdapter)(storageOptions)
-    } else {
-      storage = options.storage as StorageAdapter
-    }
-  } else {
-    storage = new LocalStorageAdapter(storageOptions)
-  }
-  if (!storage) throw new Error('Wrong options.storage interface!')
+  const storage = getStorage(storageOptions, options.storage)
 
   const store: Record<string, any> = await storage.getAll()
   const outbox: OutboxOp[] = (await storage.get('_outbox')) || []
@@ -175,16 +60,7 @@ export default async function createOfflineSyncObject<T extends object> (
     isOnline = true
     connectedAtStart = true
   } catch (err: any) {
-    const isConnectionError =
-      (err?.code === 'ECONNREFUSED') ||
-      (err?.code === 'UND_ERR_SOCKET') ||
-      (err?.code === 'ECONNRESET') ||
-      (err?.message?.includes?.('fetch failed')) ||
-      (err?.cause?.code === 'ECONNREFUSED') ||
-      (err?.cause?.code === 'UND_ERR_SOCKET') ||
-      (err?.cause?.code === 'ECONNRESET') ||
-      (err?.cause?.message?.includes?.('fetch failed'))
-    if (!isConnectionError) throw err
+    if (!isConnectionError(err)) throw err
     isOnline = false
     syncObject = undefined
   }
@@ -206,7 +82,13 @@ export default async function createOfflineSyncObject<T extends object> (
     }
   }
   function fireLocalEvent (event: string, ...args: any[]) {
-    (localListeners[event] || []).forEach(fn => fn(...args))
+    (localListeners[event] || []).forEach(fn => {
+      if (fn._name !== undefined) {
+        if (args[0]?.prop === fn._name) fn(...args)
+      } else {
+        fn(...args)
+      }
+    })
   }
 
   const accessTokenExpiringListeners: any[] = []
@@ -227,8 +109,14 @@ export default async function createOfflineSyncObject<T extends object> (
       else if (prop === 'join') base.join = async () => { throw new Error('Vaultrice: .join() is not available while offline. It will be available upon reconnection.') }
       else if (prop === 'leave') base.leave = async () => { throw new Error('Vaultrice: .leave() is not available while offline. It will be available upon reconnection.') }
       else if (prop === 'send') base.send = async () => { throw new Error('Vaultrice: .send() is not available while offline. It will be available upon reconnection.') }
-      else if (prop === 'joinedConnections') base.joinedConnections = []
-      else if (prop === 'useAccessToken') base.useAccessToken = () => { }
+      else if (prop === 'joinedConnections') {
+        // Return last known joinedConnections from syncObject if available
+        Object.defineProperty(base, 'joinedConnections', {
+          get: () => syncObject ? syncObject.joinedConnections : [],
+          enumerable: true,
+          configurable: true
+        })
+      } else if (prop === 'useAccessToken') base.useAccessToken = () => { }
       else if (prop === 'onAccessTokenExpiring') base.onAccessTokenExpiring = addAccessTokenExpiringListener
       else if (prop === 'offAccessTokenExpiring') base.offAccessTokenExpiring = removeAccessTokenExpiringListener
       else if (prop === 'connect') base.connect = async () => { }
@@ -253,85 +141,30 @@ export default async function createOfflineSyncObject<T extends object> (
     accessTokenExpiringListeners.forEach(fn => syncObject?.onAccessTokenExpiring(fn))
   }
 
-  let sweepTimer: ReturnType<typeof setInterval> | null = null
-  function startSweep (store: Record<string, any>, storage: StorageAdapter, outbox: OutboxOp[], intervalMs: number) {
-    if (sweepTimer) return
-    sweepTimer = setInterval(async () => {
-      try {
-        let mutated = false
-        for (const k of Object.keys(store)) {
-          const meta = store[k]
-          if (isExpired(meta)) {
-            logger.log('info', `Item expired and removed locally: ${k}`)
-            delete store[k]
-            await safeStorageRemove(storage, k)
-            // notify local listeners immediately about the removal
-            try { fireLocalEvent('removeItem', { prop: k }) } catch (e) { /* ignore */ }
-            mutated = true
-          }
-        }
-        if (mutated) await safeStorageSet(storage, '_outbox', outbox)
-      } catch (err: any) {
-        logger.log('warn', `Expiration sweep error: ${err.message || err.code || err.name}`)
-      }
-    }, intervalMs)
-  }
-  function stopSweep () {
-    if (sweepTimer) {
-      clearInterval(sweepTimer)
-      sweepTimer = null
-    }
-  }
-
   const handleConnect = async () => {
     if (!syncObject) return
-    await processOutbox(syncObject, options, storage, outbox, logger)
     const nls = (syncObject as any).__getNonLocalStorage?.() as NonLocalStorage | undefined
+    const internalSyncObjectStore = (syncObject as any).__getInternalMemoryStore?.() as Partial<T> | {}
     const remoteItems = nls ? await nls.getAllItems() : undefined
-    if (remoteItems) {
-      const cleanupExpiredRemote = !!options?.cleanupExpiredRemote
-      for (const k of Object.keys(remoteItems)) {
-        const localItem = store[k]
-        const remoteItem = remoteItems[k]
-        const localExpired = isExpired(localItem)
-        const remoteExpired = isExpired(remoteItem)
-        if (localExpired) {
-          logger.log('info', `Item expired and removed locally during sync: ${k}`)
-          delete store[k]
-          await safeStorageRemove(storage, k)
-          // notify local listeners that a local item expired and was removed
-          try { fireLocalEvent('removeItem', { prop: k }) } catch (e) { /* ignore */ }
+    const updateHandlers = {
+      set: async (prop: string, item: ItemType) => {
+        if (internalSyncObjectStore) {
+          ;(internalSyncObjectStore as any)[prop] = { value: item.value, expiresAt: item?.expiresAt }
         }
-        if (remoteExpired) {
-          if (cleanupExpiredRemote) {
-            logger.log('info', `Item expired and removed remotely during sync: ${k}`)
-            ;(syncObject as any)[k] = undefined
-            // also notify local listeners immediately (remote remove will likely be
-            // handled by the sweep interval, but we do it here to be prompt)
-            try { fireLocalEvent('removeItem', { prop: k }) } catch (e) { /* ignore */ }
-          }
-          await safeStorageRemove(storage, k)
-          continue
+        if (!nls) return
+        const now = Date.now()
+        return nls.setItem(prop, item.value, { ttl: item.expiresAt > now ? item.expiresAt - Date.now() : undefined })
+      },
+      remove: async (prop: string) => {
+        if (internalSyncObjectStore) {
+          delete (internalSyncObjectStore as any)[prop]
         }
-        if (!localExpired && !remoteExpired) {
-          let resolved = remoteItem
-          if (localItem && remoteItem) {
-            if (options.resolveConflict && JSON.stringify(localItem.value) !== JSON.stringify(remoteItem.value)) {
-              resolved = options.resolveConflict(localItem, remoteItem)
-            } else {
-              resolved = (localItem.updatedAt ?? localItem.createdAt ?? 0) > (remoteItem.updatedAt ?? remoteItem.createdAt ?? 0)
-                ? localItem
-                : remoteItem
-            }
-          } else if (localItem) {
-            resolved = localItem
-          }
-          store[k] = resolved
-          await safeStorageSet(storage, k, resolved)
-          ;(syncObject as any)[k] = resolved
-        }
+        if (!nls) return
+        return nls.removeItem(prop)
       }
     }
+    await processOutbox(options, storage, outbox, remoteItems || {}, updateHandlers, logger)
+    await afterProcessOutbox(options, storage, store, remoteItems, updateHandlers, fireLocalEvent, logger)
   }
 
   let lastAttachedSyncObject: T & SyncObjectMeta | undefined
@@ -526,13 +359,11 @@ export default async function createOfflineSyncObject<T extends object> (
     }
   }
 
-  const sweepInterval = options.expirationSweepInterval ?? DEFAULT_EXPIRATION_SWEEP_INTERVAL
-  startSweep(store, storage, outbox, sweepInterval)
-
+  const sweepTimer = startSweep(store, storage, outbox, options.expirationSweepInterval, fireLocalEvent, logger)
   const originalDisconnect = proxyTarget.disconnect
   proxyTarget.disconnect = async () => {
     try { await originalDisconnect?.() } catch (_) {}
-    stopSweep()
+    stopSweep(sweepTimer)
   }
 
   return new Proxy(proxyTarget, handler) as T & SyncObjectMeta

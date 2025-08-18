@@ -416,3 +416,5 @@ export interface OfflineSyncOptions extends InstanceOptions {
    */
   cleanupExpiredRemote?: boolean
 }
+
+export type OfflineSyncOptionsExtra = Omit<OfflineSyncOptions, keyof InstanceOptions>

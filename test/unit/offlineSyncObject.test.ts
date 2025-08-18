@@ -57,14 +57,27 @@ const createMockSyncObject = (initialData: Record<string, any> = {}) => {
     },
     // Compatibility helper used by OfflineSyncObject.handleConnect
     __getNonLocalStorage: () => ({
-      getAllItems: async () => store
-    })
+      getAllItems: async () => store,
+      setItem: async (key, value, options?: { ttl?: number }) => {
+        store[key] ||= {}
+        store[key].value = value
+        const now = Date.now()
+        store[key].expiresAt = options?.ttl && options?.ttl > 0 ? (now + options?.ttl) : (60 * 60 * 1000)
+        store[key].updatedAt = now
+        if (!store[key].createdAt) store[key].createdAt = now
+      },
+      removeItem: async (key) => { delete store[key] }
+    }),
+    __getInternalMemoryStore: () => {
+      syncObject._store ||= {}
+      return syncObject._store
+    }
   }
 
   return new Proxy(syncObject, {
     get: (target, prop) => {
       if (prop in target) return target[prop as keyof typeof target]
-      return target.__store[prop as string]
+      return target.__store[prop as string]?.value
     },
     set: (target, prop, value) => {
       target.__store[prop as string] = value
@@ -107,7 +120,27 @@ const createFlakyMockSyncObject = (initialData: Record<string, any> = {}, failOn
         try { fn({ prop, ...value }) } catch (_) {}
       })
     },
-    __getNonLocalStorage: () => ({ getAllItems: async () => store }),
+    __getNonLocalStorage: () => ({
+      getAllItems: async () => store,
+      setItem: async (key, value, options?: { ttl?: number }) => {
+        if (failMap[key]) {
+          // simulate a transient failure on first attempt
+          delete failMap[key]
+          throw new Error('simulated network error')
+        }
+        store[key] ||= {}
+        store[key].value = value
+        const now = Date.now()
+        store[key].expiresAt = options?.ttl && options?.ttl > 0 ? (now + options?.ttl) : (60 * 60 * 1000)
+        store[key].updatedAt = now
+        if (!store[key].createdAt) store[key].createdAt = now
+      },
+      removeItem: async (key) => { delete store[key] }
+    }),
+    __getInternalMemoryStore: () => {
+      target._store ||= {}
+      return target._store
+    },
     // helper to clear failure for a prop
     __allowProp: (prop: string) => { delete failMap[prop] }
   }
@@ -242,8 +275,8 @@ describe('createOfflineSyncObject', () => {
 
       // 3. Assertions
       expect(offlineSync.isConnected).toBe(true)
-      expect(syncObjectMock.foo.value).toBe('local_value')
-      expect(syncObjectMock.bar.value).toBe(123)
+      expect(syncObjectMock.foo).toBe('local_value')
+      expect(syncObjectMock.bar).toBe(123)
       expect(mockStorage.state._outbox).toEqual([]) // Outbox should be empty
     })
 
@@ -258,7 +291,7 @@ describe('createOfflineSyncObject', () => {
       }))
 
       // 3. Assert: Remote value should win
-      expect(offlineSync.conflict.value).toBe('remote')
+      expect(offlineSync.conflict).toBe('remote')
     })
 
     it('should use a custom conflict resolution function', async () => {
@@ -283,7 +316,7 @@ describe('createOfflineSyncObject', () => {
 
       // 4. Assert
       expect(resolveConflict).toHaveBeenCalled()
-      expect(offlineSync.list.value).toEqual(['a', 'b', 'c'])
+      expect(offlineSync.list).toEqual(['a', 'b', 'c'])
     })
 
     it('should transfer event listeners upon reconnection', async () => {
@@ -308,8 +341,6 @@ describe('createOfflineSyncObject', () => {
       syncObjectMock.__triggerRemoteUpdate('foo', { value: 'remote_update' })
       expect(itemHandler).toHaveBeenCalledWith(expect.objectContaining({ prop: 'foo', value: 'remote_update' }))
     })
-
-    // -------------------- New / Extended Tests --------------------
 
     it('sweep removes expired local items and fires removeItem', async () => {
       const now = Date.now()
@@ -445,8 +476,6 @@ describe('createOfflineSyncObject', () => {
       expect(syncObjectMock.__store.conflictKey.value).toBe('merged')
       expect(mockStorage.state._outbox).toEqual([])
     })
-
-    // -------------------- New: Network flakiness tests --------------------
 
     it('partial failure during processOutbox leaves failing op in outbox and resumes later', async () => {
       const now = Date.now()

@@ -18,7 +18,7 @@ import { ENCRYPTION_SETTINGS } from './symbols'
  * Use this class to interact with the Vaultrice API for storing and retrieving data.
  */
 export default class NonLocalStorage extends WebSocketFunctions {
-  private ttl: number | undefined
+  protected readonly ttl: number | undefined
 
   /**
    * Create a NonLocalStorage instance.

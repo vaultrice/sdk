@@ -2,7 +2,7 @@ import { StorageAdapter } from './types.ts'
 
 const LOCAL_ID_NAME = 'NON_LOCAL_STORAGE_STORAGE_ADAPTER'
 
-export class LocalStorageAdapter implements StorageAdapter {
+export default class LocalStorageAdapter implements StorageAdapter {
   private prefix: string
   private ttl?: number
   private memoryStore: Record<string, any>

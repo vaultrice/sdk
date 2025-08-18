@@ -32,6 +32,13 @@ function generateDummyJWT (payload) {
   return `${encodedHeader}.${encodedPayload}.${dummySignature}`
 }
 
+// Helper function to allow tests to pre-populate the remote state
+export function setRemoteState (projectId, className, objectId, data) {
+  const key = `${projectId}:${className}`
+  objects[key] ||= {}
+  objects[key][objectId] = { ...data }
+}
+
 export default () => {
   const mock = vi.spyOn(Base.prototype, 'request').mockImplementation(
     async function (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {
@@ -40,6 +47,13 @@ export default () => {
       const pathParts = path.split('/')
       // const className = pathParts[2]
       const objectId = pathParts[3]
+
+      if (objectId && objectId.indexOf('connection-error') > -1) {
+        // Simulate offline by always throwing a connection error
+        const error: any = new Error('fetch failed')
+        error.code = 'ECONNREFUSED'
+        throw error
+      }
 
       // getAccessToken()
       if (pathParts[1] === 'auth' && pathParts[2] === 'token') {
