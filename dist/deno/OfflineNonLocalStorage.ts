@@ -75,21 +75,18 @@ export default async function createOfflineNonLocalStorage (
   let className: string | undefined
   let ttl: number | undefined
   let logLevel: LogLevel
-  let reconnectDelay: number
 
   if (typeof idOrOptions === 'string') {
     id = idOrOptions
     className = DEFAULT_DURABLE_CACHE_CLASS
     ttl = DEFAULT_TTL
     options = { id }
-    reconnectDelay = 5000
     logLevel = 'warn'
   } else {
     className = idOrOptions?.class || DEFAULT_DURABLE_CACHE_CLASS
     id = idOrOptions?.id || getId(credentials.projectId, className)
     ttl = idOrOptions?.ttl || DEFAULT_TTL
     options = { ...(idOrOptions || {}) }
-    reconnectDelay = options.reconnectDelay ?? 5000
     logLevel = idOrOptions?.logLevel || 'warn'
   }
 
@@ -219,6 +216,10 @@ export default async function createOfflineNonLocalStorage (
     }
   }
 
+  const reconnectBaseDelay = options.connectionSettings?.reconnectBaseDelay ?? 1000
+  const reconnectMaxDelay = options.connectionSettings?.reconnectMaxDelay ?? 30000
+  let delay = reconnectBaseDelay
+
   // Remote event handlers
   function remoteSetItemHandler (item: any) {
     store[item.prop] = item
@@ -237,7 +238,7 @@ export default async function createOfflineNonLocalStorage (
   function remoteDisconnectHandler () {
     isOnline = false
     fireLocalEvent('disconnect', {})
-    setTimeout(tryReconnect, reconnectDelay)
+    setTimeout(tryReconnect, delay)
   }
 
   async function initNls () {
@@ -269,13 +270,20 @@ export default async function createOfflineNonLocalStorage (
 
   await initNls()
 
+  let reconnectAttempts = 0
   const tryReconnect = async () => {
+    reconnectAttempts++
+    delay = Math.min(
+      reconnectBaseDelay * Math.pow(2, reconnectAttempts),
+      reconnectMaxDelay
+    )
     try {
       await initNls()
       if (!isOnline) {
-        await wait(reconnectDelay)
+        await wait(delay)
         return tryReconnect()
       }
+      reconnectAttempts = 0
       logger.log('info', `Back online, ${outbox.length > 0 ? `synchronize ${outbox.length} item changes` : 'nothing to synchronize'}.`)
       await handleConnect(options, storage, store, outbox, remoteItems, nls, fireLocalEvent, logger)
     } catch (err: any) {
@@ -286,7 +294,7 @@ export default async function createOfflineNonLocalStorage (
   if (isOnline) {
     await handleConnect(options, storage, store, outbox, remoteItems, nls, fireLocalEvent, logger)
   } else {
-    setTimeout(tryReconnect, reconnectDelay)
+    setTimeout(tryReconnect, delay)
   }
 
   let lastJoinedConnections: any[] = []
@@ -327,7 +335,7 @@ export default async function createOfflineNonLocalStorage (
           if (!isConnectionError(err)) throw err
           isOnline = false
           fireLocalEvent('disconnect', {})
-          setTimeout(tryReconnect, reconnectDelay)
+          setTimeout(tryReconnect, delay)
         }
       }
       // Offline: queue for later sync
@@ -348,7 +356,7 @@ export default async function createOfflineNonLocalStorage (
           if (!isConnectionError(err)) throw err
           isOnline = false
           fireLocalEvent('disconnect', {})
-          setTimeout(tryReconnect, reconnectDelay)
+          setTimeout(tryReconnect, delay)
         }
       }
 
@@ -379,7 +387,7 @@ export default async function createOfflineNonLocalStorage (
           if (!isConnectionError(err)) throw err
           isOnline = false
           fireLocalEvent('disconnect', {})
-          setTimeout(tryReconnect, reconnectDelay)
+          setTimeout(tryReconnect, delay)
           // fallback to local below
         }
       }
@@ -421,7 +429,7 @@ export default async function createOfflineNonLocalStorage (
           if (!isConnectionError(err)) throw err
           isOnline = false
           fireLocalEvent('disconnect', {})
-          setTimeout(tryReconnect, reconnectDelay)
+          setTimeout(tryReconnect, delay)
           // fallback to local below
         }
       }
@@ -458,7 +466,7 @@ export default async function createOfflineNonLocalStorage (
           if (!isConnectionError(err)) throw err
           isOnline = false
           fireLocalEvent('disconnect', {})
-          setTimeout(tryReconnect, reconnectDelay)
+          setTimeout(tryReconnect, delay)
         }
       }
       // Offline: set each item individually
@@ -492,7 +500,7 @@ export default async function createOfflineNonLocalStorage (
           if (!isConnectionError(err)) throw err
           isOnline = false
           fireLocalEvent('disconnect', {})
-          setTimeout(tryReconnect, reconnectDelay)
+          setTimeout(tryReconnect, delay)
         }
       }
       // Offline: return local items
@@ -512,7 +520,7 @@ export default async function createOfflineNonLocalStorage (
           if (!isConnectionError(err)) throw err
           isOnline = false
           fireLocalEvent('disconnect', {})
-          setTimeout(tryReconnect, reconnectDelay)
+          setTimeout(tryReconnect, delay)
         }
       }
       // Offline: filter local keys
@@ -532,7 +540,7 @@ export default async function createOfflineNonLocalStorage (
           if (!isConnectionError(err)) throw err
           isOnline = false
           fireLocalEvent('disconnect', {})
-          setTimeout(tryReconnect, reconnectDelay)
+          setTimeout(tryReconnect, delay)
         }
       }
       // Offline: remove each item individually
@@ -554,7 +562,7 @@ export default async function createOfflineNonLocalStorage (
           if (!isConnectionError(err)) throw err
           isOnline = false
           fireLocalEvent('disconnect', {})
-          setTimeout(tryReconnect, reconnectDelay)
+          setTimeout(tryReconnect, delay)
         }
       }
       // Offline: remove all local items
@@ -577,7 +585,7 @@ export default async function createOfflineNonLocalStorage (
           if (!isConnectionError(err)) throw err
           isOnline = false
           fireLocalEvent('disconnect', {})
-          setTimeout(tryReconnect, reconnectDelay)
+          setTimeout(tryReconnect, delay)
         }
       }
       // Offline: emulate increment locally
@@ -603,7 +611,7 @@ export default async function createOfflineNonLocalStorage (
           if (!isConnectionError(err)) throw err
           isOnline = false
           fireLocalEvent('disconnect', {})
-          setTimeout(tryReconnect, reconnectDelay)
+          setTimeout(tryReconnect, delay)
         }
       }
       // Offline: emulate decrement locally
@@ -699,6 +707,7 @@ export default async function createOfflineNonLocalStorage (
   wrapper.disconnect = async () => {
     try { await originalDisconnect?.() } catch (_) {}
     stopSweep(sweepTimer)
+    await safeStorageSet(storage, '_outbox', outbox)
   }
 
   return wrapper as NonLocalStorage

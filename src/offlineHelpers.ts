@@ -200,7 +200,7 @@ export async function afterProcessOutbox (
 ): Promise<void> {
   if (!remoteItems) return
 
-  const cleanupExpiredRemote = !!options.cleanupExpiredRemote
+  // const cleanupExpiredRemote = !!options.cleanupExpiredRemote
   for (const k of Object.keys(remoteItems)) {
     const localItem = store[k]
     const remoteItem = remoteItems[k]
@@ -213,11 +213,11 @@ export async function afterProcessOutbox (
       fireLocalEvent('removeItem', { prop: k })
     }
     if (remoteExpired) {
-      if (cleanupExpiredRemote) {
-        logger.log('info', `Item expired and removed remotely during sync: ${k}`)
-        await update.remove(k)
-        fireLocalEvent('removeItem', { prop: k })
-      }
+      // if (cleanupExpiredRemote) {
+      //   logger.log('info', `Item expired and removed remotely during sync: ${k}`)
+      //   await update.remove(k)
+      //   fireLocalEvent('removeItem', { prop: k })
+      // }
       await safeStorageRemove(storage, k)
       continue
     }

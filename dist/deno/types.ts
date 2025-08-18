@@ -109,18 +109,18 @@ export type InstanceOptions = {
   /** Log level. @default 'warn' */
   logLevel?: LogLevel,
   /**
-   * WebSocket connection settings.
+   * Connection settings (mainly for WebSocket connection).
    *
    * @property autoReconnect - If true, automatically reconnect on unexpected disconnects. @default true
    * @property reconnectBaseDelay - Base delay in milliseconds for exponential backoff between reconnect attempts. @default 1000
-   * @property reconnectMaxDelay - Maximum delay in milliseconds for exponential backoff between reconnect attempts. @default 30000
+   * @property reconnectMaxDelay - Maximum delay in milliseconds for exponential backoff between reconnect attempts. @default 60000
    */
-  webSocketSettings?: {
+  connectionSettings?: {
     /** If true, automatically reconnect on unexpected disconnects. @default true */
     autoReconnect?: boolean,
     /** Base delay in milliseconds for exponential backoff between reconnect attempts. @default 1000 */
     reconnectBaseDelay?: number,
-    /** Maximum delay in milliseconds for exponential backoff between reconnect attempts. @default 30000 */
+    /** Maximum delay in milliseconds for exponential backoff between reconnect attempts. @default 60000 */
     reconnectMaxDelay?: number
   }
 }
@@ -377,19 +377,6 @@ export interface OfflineSyncOptions extends InstanceOptions {
   ) => ItemType
 
   /**
-   * Delay in milliseconds between automatic reconnect attempts when offline.
-   * Defaults to 5000 ms if not specified.
-   *
-   * @default 5000
-   *
-   * @example
-   * ```typescript
-   * reconnectDelay: 10000 // Try to reconnect every 10 seconds
-   * ```
-   */
-  reconnectDelay?: number
-
-  /**
    * Interval in milliseconds for periodic expiration sweep.
    * Expired items will be removed from local storage at this interval.
    * Defaults to 15 minutes (900000 ms).
@@ -414,7 +401,7 @@ export interface OfflineSyncOptions extends InstanceOptions {
    * cleanupExpiredRemote: true // Actively delete expired remote items
    * ```
    */
-  cleanupExpiredRemote?: boolean
+  // cleanupExpiredRemote?: boolean
 }
 
 export type OfflineSyncOptionsExtra = Omit<OfflineSyncOptions, keyof InstanceOptions>

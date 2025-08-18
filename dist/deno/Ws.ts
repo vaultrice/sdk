@@ -28,7 +28,7 @@ export default class WebSocketFunctions extends Base {
   /**
  * Whether automatic reconnection is enabled for the WebSocket.
  * If true, the client will attempt to reconnect on unexpected disconnects.
- * Controlled via InstanceOptions.webSocketSettings.autoReconnect.
+ * Controlled via InstanceOptions.connectionSettings.autoReconnect.
  */
   private autoReconnect: boolean
 
@@ -40,15 +40,15 @@ export default class WebSocketFunctions extends Base {
 
   /**
  * Base delay (in milliseconds) for exponential backoff between reconnect attempts.
- * Controlled via InstanceOptions.webSocketSettings.reconnectBaseDelay.
+ * Controlled via InstanceOptions.connectionSettings.reconnectBaseDelay.
  */
   private reconnectBaseDelay: number = 1000
 
   /**
  * Maximum delay (in milliseconds) for exponential backoff between reconnect attempts.
- * Controlled via InstanceOptions.webSocketSettings.reconnectMaxDelay.
+ * Controlled via InstanceOptions.connectionSettings.reconnectMaxDelay.
  */
-  private reconnectMaxDelay: number = 30000
+  private reconnectMaxDelay: number = 60000
 
   /**
  * Stores the last join data used for presence channel re-joining after reconnect.
@@ -111,9 +111,9 @@ export default class WebSocketFunctions extends Base {
     this[EVENT_HANDLERS] = new Map()
 
     const opts = typeof idOrOptions === 'object' ? idOrOptions : {}
-    this.autoReconnect = opts.webSocketSettings?.autoReconnect ?? true
-    this.reconnectBaseDelay = opts.webSocketSettings?.reconnectBaseDelay ?? 1000
-    this.reconnectMaxDelay = opts.webSocketSettings?.reconnectMaxDelay ?? 30000
+    this.autoReconnect = opts.connectionSettings?.autoReconnect ?? true
+    this.reconnectBaseDelay = opts.connectionSettings?.reconnectBaseDelay ?? 1000
+    this.reconnectMaxDelay = opts.connectionSettings?.reconnectMaxDelay ?? 30000
   }
 
   /**
@@ -656,8 +656,7 @@ export default class WebSocketFunctions extends Base {
     ws.addEventListener('open', () => {
       this.isConnected = true
     }, { once: true })
-    ws.addEventListener('close', (arg) => {
-      console.log('closed', arg)
+    ws.addEventListener('close', () => {
       this.isConnected = false
     }, { once: true })
 
@@ -676,8 +675,7 @@ export default class WebSocketFunctions extends Base {
     //   `${wsBasePath}/project/${this[CREDENTIALS].projectId}/ws/${this.class}/${this.id}`,
     //   protocols
     // )
-    ws.addEventListener('close', (arg) => {
-      console.log('closed 2', arg)
+    ws.addEventListener('close', () => {
       delete this[WEBSOCKET]
       const wasJoined = this.hasJoined
       const lastJoinData = this.lastJoinData

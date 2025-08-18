@@ -27,21 +27,18 @@ export default async function createOfflineSyncObject<T extends object> (
   let className: string | undefined
   let ttl: number | undefined
   let logLevel: LogLevel
-  let reconnectDelay: number
 
   if (typeof idOrOptions === 'string') {
     id = idOrOptions
     className = DEFAULT_DURABLE_CACHE_CLASS
     ttl = DEFAULT_TTL
     options = { id }
-    reconnectDelay = 5000
     logLevel = 'warn'
   } else {
     className = idOrOptions?.class || DEFAULT_DURABLE_CACHE_CLASS
     id = idOrOptions?.id || getId(credentials.projectId, className)
     ttl = idOrOptions?.ttl || DEFAULT_TTL
     options = { ...(idOrOptions || {}) }
-    reconnectDelay = options.reconnectDelay ?? 5000
     logLevel = idOrOptions?.logLevel || 'warn'
   }
 
@@ -204,7 +201,16 @@ export default async function createOfflineSyncObject<T extends object> (
     safeStorageRemove(storage, item.prop)
   }
 
+  const reconnectBaseDelay = options.connectionSettings?.reconnectBaseDelay ?? 1000
+  const reconnectMaxDelay = options.connectionSettings?.reconnectMaxDelay ?? 30000
+  let reconnectAttempts = 0
+  let delay = reconnectBaseDelay
   const tryReconnect = async () => {
+    reconnectAttempts++
+    delay = Math.min(
+      reconnectBaseDelay * Math.pow(2, reconnectAttempts),
+      reconnectMaxDelay
+    )
     try {
       const newSyncObject = await createSyncObject<T>(credentials, options)
       isOnline = true
@@ -213,15 +219,16 @@ export default async function createOfflineSyncObject<T extends object> (
       attachSyncListeners(syncObject)
       fireLocalEvent('connect')
       if (syncObject.isConnected) {
+        reconnectAttempts = 0
         logger.log('info', `Back online, ${outbox.length > 0 ? `synchronize ${outbox.length} item changes` : 'nothing to synchronize'}.`)
         await handleConnect()
       }
     } catch {
-      setTimeout(() => tryReconnect().catch(() => {}), reconnectDelay)
+      setTimeout(() => tryReconnect().catch(() => {}), delay)
     }
   }
   if (!isOnline) {
-    setTimeout(() => tryReconnect().catch(() => {}), reconnectDelay)
+    setTimeout(() => tryReconnect().catch(() => {}), delay)
   } else if (syncObject) {
     attachSyncListeners(syncObject)
     if (syncObject.isConnected) {
@@ -255,10 +262,10 @@ export default async function createOfflineSyncObject<T extends object> (
         const item = Reflect.get(syncObject as any, prop, receiver)
         if (!item) return undefined
         if (isExpired(item)) {
-          if (options.cleanupExpiredRemote) {
-            // mark for removal on the server and notify local listeners (handled via events)
-            try { (syncObject as any)[prop] = undefined } catch (_) {}
-          }
+          // if (options.cleanupExpiredRemote) {
+          //   // mark for removal on the server and notify local listeners (handled via events)
+          //   try { (syncObject as any)[prop] = undefined } catch (_) {}
+          // }
           return undefined
         }
         // Return the full meta object (contains { value, createdAt, updatedAt, expiresAt })
@@ -309,6 +316,8 @@ export default async function createOfflineSyncObject<T extends object> (
         safeStorageSet(storage, prop, meta)
         outbox.push({ op: 'set', prop, value: meta })
         safeStorageSet(storage, '_outbox', outbox)
+        // Fire local setItem event for offline updates
+        fireLocalEvent('setItem', { prop, ...meta })
       }
       return true
     },
@@ -320,6 +329,8 @@ export default async function createOfflineSyncObject<T extends object> (
         safeStorageRemove(storage, prop)
         outbox.push({ op: 'remove', prop })
         safeStorageSet(storage, '_outbox', outbox)
+        // Fire local removeItem event for offline deletes
+        fireLocalEvent('removeItem', { prop })
       }
       return true
     },
@@ -364,6 +375,7 @@ export default async function createOfflineSyncObject<T extends object> (
   proxyTarget.disconnect = async () => {
     try { await originalDisconnect?.() } catch (_) {}
     stopSweep(sweepTimer)
+    await safeStorageSet(storage, '_outbox', outbox)
   }
 
   return new Proxy(proxyTarget, handler) as T & SyncObjectMeta

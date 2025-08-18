@@ -381,27 +381,27 @@ describe('createOfflineSyncObject', () => {
       expect(mockStorage.state._outbox).toEqual([])
     })
 
-    it('cleanupExpiredRemote removes expired remote items on connect if enabled', async () => {
-      const now = Date.now()
-      // remote item already expired - bring online first
-      await goOnline(createMockSyncObject({
-        oldRemote: { value: 'remote', createdAt: now - 20000, updatedAt: now - 20000, expiresAt: now - 10000 }
-      }))
+    // it('cleanupExpiredRemote removes expired remote items on connect if enabled', async () => {
+    //   const now = Date.now()
+    //   // remote item already expired - bring online first
+    //   await goOnline(createMockSyncObject({
+    //     oldRemote: { value: 'remote', createdAt: now - 20000, updatedAt: now - 20000, expiresAt: now - 10000 }
+    //   }))
 
-      await createOfflineSyncObject(credentials, {
-        id: 'test-cleanup-remote',
-        storage: () => mockStorage,
-        cleanupExpiredRemote: true
-      })
+    //   await createOfflineSyncObject(credentials, {
+    //     id: 'test-cleanup-remote',
+    //     storage: () => mockStorage,
+    //     cleanupExpiredRemote: true
+    //   })
 
-      // trigger reconnect (instance attempts reconnect in next tick)
-      await vi.advanceTimersByTimeAsync(5000)
+    //   // trigger reconnect (instance attempts reconnect in next tick)
+    //   await vi.advanceTimersByTimeAsync(5000)
 
-      // after handleConnect, remote store should no longer have oldRemote
-      expect(syncObjectMock.__store.oldRemote).toBeUndefined()
-      // local storage cleaned
-      expect(mockStorage.remove).toHaveBeenCalledWith('oldRemote')
-    })
+    //   // after handleConnect, remote store should no longer have oldRemote
+    //   expect(syncObjectMock.__store.oldRemote).toBeUndefined()
+    //   // local storage cleaned
+    //   expect(mockStorage.remove).toHaveBeenCalledWith('oldRemote')
+    // })
 
     it('transfers named listeners (event + name) on reconnect', async () => {
       const itemHandler = vi.fn()
