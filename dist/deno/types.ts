@@ -122,6 +122,24 @@ export type InstanceOptions = {
     reconnectBaseDelay?: number,
     /** Maximum delay in milliseconds for exponential backoff between reconnect attempts. @default 60000 */
     reconnectMaxDelay?: number
+    /**
+     * Interval in milliseconds between WebSocket ping messages to keep the connection alive.
+     *
+     * @default 20000
+     *
+     * @remarks
+     * The client will send a ping message at this interval. If a pong response is not received within the pongTimeout, the connection will be closed and a reconnect will be attempted if autoReconnect is enabled.
+     */
+    pingInterval?: number
+    /**
+     * Timeout in milliseconds to wait for a pong response after sending a ping.
+     *
+     * @default 10000
+     *
+     * @remarks
+     * If a pong response is not received within this timeout after a ping, the connection will be considered lost and closed.
+     */
+    pongTimeout?: number
   }
 }
 

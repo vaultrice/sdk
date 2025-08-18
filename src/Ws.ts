@@ -2,6 +2,8 @@ import Base from './Base'
 import { CREDENTIALS, ENCRYPTION_SETTINGS, ERROR_HANDLERS, EVENT_HANDLERS, WEBSOCKET } from './symbols'
 import { ItemType, JSONObj, InstanceOptions, JoinedConnections, JoinedConnection, LeavedConnection } from './types'
 
+// const inMemoryResumeStore: { [key: string]: string } = {}
+
 /**
  * WebSocket-enabled functionality for real-time communication and presence features.
  *
@@ -26,41 +28,73 @@ export default class WebSocketFunctions extends Base {
   private [EVENT_HANDLERS]: Map<string, Set<{ handler: Function, wsListener?: Function, itemName?: string }>> = new Map()
 
   /**
- * Whether automatic reconnection is enabled for the WebSocket.
- * If true, the client will attempt to reconnect on unexpected disconnects.
- * Controlled via InstanceOptions.connectionSettings.autoReconnect.
- */
+  * Whether automatic reconnection is enabled for the WebSocket.
+  * If true, the client will attempt to reconnect on unexpected disconnects.
+  * Controlled via InstanceOptions.connectionSettings.autoReconnect.
+  */
   private autoReconnect: boolean
 
   /**
- * Number of consecutive reconnection attempts made after a disconnect.
- * Used for exponential backoff calculation.
- */
+  * Number of consecutive reconnection attempts made after a disconnect.
+  * Used for exponential backoff calculation.
+  */
   private reconnectAttempts: number = 0
 
   /**
- * Base delay (in milliseconds) for exponential backoff between reconnect attempts.
- * Controlled via InstanceOptions.connectionSettings.reconnectBaseDelay.
- */
+  * Base delay (in milliseconds) for exponential backoff between reconnect attempts.
+  * Controlled via InstanceOptions.connectionSettings.reconnectBaseDelay.
+  */
   private reconnectBaseDelay: number = 1000
 
   /**
- * Maximum delay (in milliseconds) for exponential backoff between reconnect attempts.
- * Controlled via InstanceOptions.connectionSettings.reconnectMaxDelay.
- */
+  * Maximum delay (in milliseconds) for exponential backoff between reconnect attempts.
+  * Controlled via InstanceOptions.connectionSettings.reconnectMaxDelay.
+  */
   private reconnectMaxDelay: number = 60000
 
   /**
- * Stores the last join data used for presence channel re-joining after reconnect.
- * Used to automatically re-join with the same data after a successful reconnection.
- */
+  * Stores the last join data used for presence channel re-joining after reconnect.
+  * Used to automatically re-join with the same data after a successful reconnection.
+  */
   private lastJoinData?: JSONObj
 
   /**
- * Indicates if the WebSocket connection is currently established.
- * True if connected, false otherwise.
- */
+  * Indicates if the WebSocket connection is currently established.
+  * True if connected, false otherwise.
+  */
   public isConnected: boolean = false
+
+  /**
+   * Interval in milliseconds between WebSocket ping messages to keep the connection alive.
+   *
+   * @default 20000
+   *
+   * @remarks
+   * The client will send a ping message at this interval. If a pong response is not received within the pongTimeout, the connection will be closed and a reconnect will be attempted if autoReconnect is enabled.
+   */
+  private pingInterval: number = 20000
+
+  /**
+   * Timeout in milliseconds to wait for a pong response after sending a ping.
+   *
+   * @default 10000
+   *
+   * @remarks
+   * If a pong response is not received within this timeout after a ping, the connection will be considered lost and closed.
+   */
+  private pongTimeout: number = 10000
+
+  /** @internal Timer reference for periodic ping messages. */
+  private pingTimer?: ReturnType<typeof setInterval>
+
+  /** @internal Timer reference for pong response timeout. */
+  private pongTimer?: ReturnType<typeof setTimeout>
+
+  /** @internal Storage key for connection resume token. */
+  // private resumeStorageKey?: string
+
+  /** @internal connectionId for connection resume token. */
+  private connectionId?: string
 
   /**
    * Create a WebSocketFunctions instance with string ID.
@@ -114,6 +148,9 @@ export default class WebSocketFunctions extends Base {
     this.autoReconnect = opts.connectionSettings?.autoReconnect ?? true
     this.reconnectBaseDelay = opts.connectionSettings?.reconnectBaseDelay ?? 1000
     this.reconnectMaxDelay = opts.connectionSettings?.reconnectMaxDelay ?? 30000
+    this.pingInterval = opts.connectionSettings?.pingInterval ?? 20000
+    this.pongTimeout = opts.connectionSettings?.pongTimeout ?? 10000
+    // this.resumeStorageKey = `vaultrice:ws:${this[CREDENTIALS].projectId}:${this.class}:${this.id}`
   }
 
   /**
@@ -653,11 +690,88 @@ export default class WebSocketFunctions extends Base {
     const ws = this[WEBSOCKET] = new WebSocket(`${wsBasePath}/project/${this[CREDENTIALS].projectId}/ws/${this.class}/${this.id}?${queryParams}`)
     this.logger.log('info', 'initializing WebSocket connection...')
 
+    // control message handler — processed before user-level message handlers (safe to run in addition)
+    const controlMessageHandler = (evt: MessageEvent) => {
+      let parsed: any
+      try {
+        // only parse string messages (the DO sends JSON text), ignore non-json payloads
+        parsed = typeof evt.data === 'string' ? JSON.parse(evt.data) : undefined
+      } catch (e) {
+        parsed = undefined
+      }
+      if (!parsed || typeof parsed !== 'object') return
+
+      const evName = parsed.event
+      if (!evName) return
+
+      // EXACT match with server auto-response 'pong'
+      if (evName === 'pong') {
+        // Received pong (possibly from CF edge auto-response) — keep connection alive
+        this.logger.log('debug', 'received pong')
+        // record last time we got a pong
+        // ;(this as any).lastPongAt = Date.now()
+        // clear the pong timer
+        this.clearPongTimer()
+        // prevent user listeners from receiving this control message
+        if (typeof (evt as any).stopImmediatePropagation === 'function') {
+          try { (evt as any).stopImmediatePropagation() } catch (_) {}
+        }
+        return
+      }
+
+      // Server-side handshake: record/refresh assigned connectionId
+      if ((evName === 'connected' || evName === 'resume:ack') && parsed.connectionId) {
+        this.saveConnectionId(parsed.connectionId)
+        // optionally notify user-level 'connected' or 'resume:ack' events:
+        // we don't add a custom event emitter; consumers can listen to message events if desired
+        // prevent user handlers from getting the handshake messages
+        if (typeof (evt as any).stopImmediatePropagation === 'function') {
+          try { (evt as any).stopImmediatePropagation() } catch (_) {}
+        }
+        return
+      }
+
+      // Optional: server-side rejection for invalid resume tokens
+      // Some servers will close with code 1008; some will reply with an error JSON + close.
+      if (evName === 'error') {
+        const payload = parsed.payload
+        if (typeof payload === 'string' && payload.toLowerCase().includes('invalid resume')) {
+          this.logger.log('warn', 'server signalled invalid resume token — clearing saved connectionId')
+          this.clearSavedConnectionId()
+          if (typeof (evt as any).stopImmediatePropagation === 'function') {
+            try { (evt as any).stopImmediatePropagation() } catch (_) {}
+          }
+        }
+      }
+    }
+
+    // Attach control handler BEFORE other message listeners so it can process pongs and handshake first:
+    ws.addEventListener('message', controlMessageHandler)
+
+    // When socket opens: send resume if we have a saved connectionId, start heartbeat
     ws.addEventListener('open', () => {
       this.isConnected = true
+      this.reconnectAttempts = 0
+      try {
+        const saved = this.getSavedConnectionId()
+        if (saved) {
+          // send an immediate resume handshake (server expects: { event: 'resume', connectionId })
+          try { ws.send(JSON.stringify({ event: 'resume', connectionId: saved })) } catch (_) {}
+        }
+      } catch (e) { /* ignore */ }
+      // start the heartbeat
+      this.startHeartbeat()
     }, { once: true })
-    ws.addEventListener('close', () => {
+
+    // When socket closes: stop heartbeat and keep your existing reconnect behavior
+    ws.addEventListener('close', (ev) => {
       this.isConnected = false
+      this.stopHeartbeat()
+      // server rejected resume token: clear saved resume id so next connect creates a fresh session
+      // if (ev?.code === 1008) {
+      //   this.logger.log('warn', 'WebSocket closed with 1008 — clearing saved resume token')
+      //   this.clearSavedConnectionId()
+      // }
     }, { once: true })
 
     // const protocols = [
@@ -675,7 +789,16 @@ export default class WebSocketFunctions extends Base {
     //   `${wsBasePath}/project/${this[CREDENTIALS].projectId}/ws/${this.class}/${this.id}`,
     //   protocols
     // )
-    ws.addEventListener('close', () => {
+    ws.addEventListener('close', (ev) => {
+      if (ev?.code === 1008) {
+        this.logger.log('warn', 'WebSocket closed with 1008 during reconnection')
+        this.clearSavedConnectionId()
+      }
+      if (ev?.reason && ev?.reason.indexOf('TierLimitExceeded') > -1) {
+        this.autoReconnect = false
+        this.logger.log('error', ev.reason)
+        this[ERROR_HANDLERS].forEach((h: (e: Error) => void) => h(new Error(ev.reason)))
+      }
       delete this[WEBSOCKET]
       const wasJoined = this.hasJoined
       const lastJoinData = this.lastJoinData
@@ -727,25 +850,41 @@ export default class WebSocketFunctions extends Base {
                     ws.addEventListener('error', wsListener)
                   } else if (event === 'message') {
                     wsListener = (evt: Event) => {
-                      const msg = JSON.parse((evt as MessageEvent).data)
+                      let msg: any
+                      try {
+                        msg = typeof (evt as MessageEvent).data === 'string' ? JSON.parse((evt as MessageEvent).data) : undefined
+                      } catch { msg = undefined }
+                      if (!msg) return
                       if (msg.event === 'message') entry.handler(msg.payload)
                     }
                     ws.addEventListener('message', wsListener)
                   } else if (event === 'presence:join') {
                     wsListener = (evt: Event) => {
-                      const msg = JSON.parse((evt as MessageEvent).data)
+                      let msg: any
+                      try {
+                        msg = typeof (evt as MessageEvent).data === 'string' ? JSON.parse((evt as MessageEvent).data) : undefined
+                      } catch { msg = undefined }
+                      if (!msg) return
                       if (msg.event === 'presence:join') entry.handler(msg.payload)
                     }
                     ws.addEventListener('message', wsListener)
                   } else if (event === 'presence:leave') {
                     wsListener = (evt: Event) => {
-                      const msg = JSON.parse((evt as MessageEvent).data)
+                      let msg: any
+                      try {
+                        msg = typeof (evt as MessageEvent).data === 'string' ? JSON.parse((evt as MessageEvent).data) : undefined
+                      } catch { msg = undefined }
+                      if (!msg) return
                       if (msg.event === 'presence:leave') entry.handler(msg.payload)
                     }
                     ws.addEventListener('message', wsListener)
                   } else if (event === 'setItem') {
                     wsListener = (evt: Event) => {
-                      const msg = JSON.parse((evt as MessageEvent).data)
+                      let msg: any
+                      try {
+                        msg = typeof (evt as MessageEvent).data === 'string' ? JSON.parse((evt as MessageEvent).data) : undefined
+                      } catch { msg = undefined }
+                      if (!msg) return
                       if (msg.event === 'setItem') {
                         if (!entry.itemName || msg.payload.prop === entry.itemName) entry.handler(msg.payload)
                       }
@@ -753,7 +892,11 @@ export default class WebSocketFunctions extends Base {
                     ws.addEventListener('message', wsListener)
                   } else if (event === 'removeItem') {
                     wsListener = (evt: Event) => {
-                      const msg = JSON.parse((evt as MessageEvent).data)
+                      let msg: any
+                      try {
+                        msg = typeof (evt as MessageEvent).data === 'string' ? JSON.parse((evt as MessageEvent).data) : undefined
+                      } catch { msg = undefined }
+                      if (!msg) return
                       if (msg.event === 'removeItem') {
                         if (!entry.itemName || msg.payload.prop === entry.itemName) entry.handler(msg.payload)
                       }
@@ -821,6 +964,85 @@ export default class WebSocketFunctions extends Base {
       }
     })
     return ws
+  }
+
+  private saveConnectionId (connectionId: string) {
+    this.connectionId = connectionId
+    // if (!this.resumeStorageKey) return
+    // if (typeof window !== 'undefined' && window.localStorage) {
+    //   window.localStorage.setItem(this.resumeStorageKey, connectionId)
+    // } else {
+    //   inMemoryResumeStore[this.resumeStorageKey] = connectionId
+    // }
+    this.logger.log('debug', `saved connectionId ${connectionId}`)
+  }
+
+  private getSavedConnectionId (): string | undefined {
+    return this.connectionId
+    // if (!this.resumeStorageKey) return null
+    // if (typeof window !== 'undefined' && window.localStorage) {
+    //   return window.localStorage.getItem(this.resumeStorageKey)
+    // } else {
+    //   return inMemoryResumeStore[this.resumeStorageKey]
+    // }
+  }
+
+  private clearSavedConnectionId () {
+    this.connectionId = undefined
+    // if (!this.resumeStorageKey) return
+    // if (typeof window !== 'undefined' && window.localStorage) {
+    //   window.localStorage.removeItem(this.resumeStorageKey)
+    // } else {
+    //   delete inMemoryResumeStore[this.resumeStorageKey]
+    // }
+  }
+
+  private clearPongTimer () {
+    if (this.pongTimer) {
+      clearTimeout(this.pongTimer)
+      this.pongTimer = undefined
+    }
+  }
+
+  private startPongTimer () {
+    this.clearPongTimer()
+    this.pongTimer = setTimeout(() => {
+      this.logger.log('warn', 'pong timeout — closing socket to reconnect')
+      try { this[WEBSOCKET]?.close(1006, 'pong timeout') } catch (_) {}
+      // onclose cleans up and starts reconnect logic
+    }, this.pongTimeout)
+  }
+
+  private stopHeartbeat () {
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer)
+      this.pingTimer = undefined
+    }
+    this.clearPongTimer()
+  }
+
+  private startHeartbeat () {
+    this.stopHeartbeat()
+    const ws = this[WEBSOCKET]
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      try {
+        ws.send(JSON.stringify({ event: 'ping' })) // must match the DO's WebSocketRequestResponsePair request exactly
+        // start a pong timeout; if no pong arrives -> onPongTimeout
+        this.startPongTimer()
+      } catch (e) {
+      /* ignore send error, close will follow */
+      }
+    }
+    this.pingTimer = setInterval(() => {
+      const wsInner = this[WEBSOCKET]
+      if (!wsInner || wsInner.readyState !== WebSocket.OPEN) return
+      try {
+        wsInner.send(JSON.stringify({ event: 'ping' }))
+        this.startPongTimer()
+      } catch (e) {
+      /* ignore send error, close will follow */
+      }
+    }, this.pingInterval)
   }
 
   /**

@@ -42,21 +42,72 @@ export default () => {
         })
       })
 
-      if (!connectionId) return
+      // If we found the matching client-side connection metadata, associate it on server-side socket
+      if (!connectionId) {
+        // No mapping found — we still keep socket but we can't identify it for room broadcasts
+        // (possible in tests that create sockets before server mapping exists)
+      } else {
+        // set on the server-side socket for convenience (so we can easily compare later)
+        socket.connectionId = connectionId
+      }
 
-      const conInfo = conns[`${projectId}:${className}`][objectId].find((c) => c.connectionId === connectionId)
-      if (!conInfo) return
+      // Immediately notify this socket that it is connected (server DO sends this)
+      if (connectionId) {
+        try {
+          socket.send(JSON.stringify({ event: 'connected', connectionId }))
+        } catch (_) { /* ignore send errors during tests */ }
+      }
 
       socket.on('message', (data) => {
-        const parsedData = JSON.parse(data)
+        let parsedData
+        try {
+          parsedData = typeof data === 'string' ? JSON.parse(data) : undefined
+        } catch (e) {
+          parsedData = undefined
+        }
+        if (!parsedData || typeof parsedData !== 'object') return
 
+        // PING/PONG — reply only to the sender
+        if (parsedData.event === 'ping') {
+          try {
+            socket.send(JSON.stringify({ event: 'pong' }))
+          } catch (_) {}
+          return
+        }
+
+        // RESUME handshake — client requests resume with connectionId
+        if (parsedData.event === 'resume' && parsedData.connectionId) {
+          const resumeId = parsedData.connectionId
+          // If we know about this connectionId in conns, ack it (simulate DO accept resume)
+          const roomKey = `${projectId}:${className}`
+          const sessions = conns[roomKey] && conns[roomKey][objectId]
+          const known = sessions && sessions.find(c => c.connectionId === resumeId)
+          if (known) {
+            // Associate server socket with this connection id for subsequent broadcasts
+            socket.connectionId = resumeId
+            // ack resume only to this socket
+            try { socket.send(JSON.stringify({ event: 'resume:ack', connectionId: resumeId })) } catch (_) {}
+          } else {
+            // unknown resume -> send error and/or close (tests may assert clearing saved token)
+            try { socket.send(JSON.stringify({ event: 'error', payload: 'Invalid resume token' })) } catch (_) {}
+            // optionally close the socket to simulate server rejecting resume (client will clear on close 1008)
+            try { socket.close(1008, 'Invalid resume token') } catch (_) {}
+          }
+          return
+        }
+
+        // PRESENCE JOIN / LEAVE (same as before — update state + broadcast)
         if (parsedData.event === 'presence:join') {
+          if (!projectId || !className || !objectId || !socket.connectionId) return
+          const conInfo = conns[`${projectId}:${className}`][objectId].find((c) => c.connectionId === socket.connectionId)
+          if (!conInfo) return
+
           // Update the connection info with join data
           conInfo.data = parsedData.payload
           conInfo.joinedAt = Date.now()
           conInfo.keyVersion = parsedData.keyVersion
 
-          // Broadcast to ALL WebSocket connections for this server (like the real implementation)
+          // Broadcast to ALL WebSocket connections for this room (like the real implementation)
           server.emit('message', JSON.stringify({
             event: parsedData.event,
             connectionId: conInfo.connectionId,
@@ -64,9 +115,14 @@ export default () => {
             keyVersion: conInfo.keyVersion,
             payload: parsedData.payload
           }))
+          return
         }
 
         if (parsedData.event === 'presence:leave') {
+          if (!projectId || !className || !objectId || !socket.connectionId) return
+          const conInfo = conns[`${projectId}:${className}`][objectId].find((c) => c.connectionId === socket.connectionId)
+          if (!conInfo) return
+
           const leavePayload = {
             event: parsedData.event,
             connectionId: conInfo.connectionId,
@@ -81,9 +137,12 @@ export default () => {
           delete conInfo.data
           delete conInfo.joinedAt
           delete conInfo.keyVersion
+          return
         }
 
+        // MESSAGE broadcast (exclude sender)
         if (parsedData.event === 'message') {
+          if (!projectId || !className || !objectId) return
           const roomKey = `${projectId}:${className}`
 
           // Broadcast to OTHER WebSocket connections in the same room (exclude sender)
@@ -91,8 +150,8 @@ export default () => {
             Object.keys(ws[roomKey][objectId]).forEach(apiKey => {
               const wsConnection = ws[roomKey][objectId][apiKey]
               if (wsConnection &&
-                  wsConnection.readyState === WebSocket.OPEN &&
-                  wsConnection.connectionId !== socket.connectionId) { // Exclude sender
+              wsConnection.readyState === WebSocket.OPEN &&
+              wsConnection.connectionId !== socket.connectionId) { // Exclude sender
                 // Create a message event and dispatch it directly to the WebSocket
                 const messageEvent = new MessageEvent('message', {
                   data: JSON.stringify({
@@ -104,16 +163,15 @@ export default () => {
 
                 // Dispatch the event directly to trigger the message handlers
                 wsConnection.dispatchEvent(messageEvent)
-              } else if (wsConnection.connectionId === socket.connectionId) {
-                console.log(`Skipping sender connection ${wsConnection.connectionId}`)
               }
             })
-          } else {
-            console.log('No room connections found for broadcasting')
           }
         }
+
+        // fallback: ignore unknown events
       })
     })
+
     return server
   }
 

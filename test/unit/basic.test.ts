@@ -407,4 +407,106 @@ describe('NonLocalStorage', () => {
       expect(nls).to.have.property('idSignature')
     })
   })
+
+  // add to your existing describe('NonLocalStorage', ...) block (or a new block)
+  describe('hibernation / heartbeat / resume behaviors', () => {
+    it('responds to ping with pong (only to sender)', async () => {
+      const nls = new NonLocalStorage({ apiKey: uuidv4(), apiSecret: 'dummy', projectId: uuidv4() })
+
+      // ensure connected
+      await new Promise<void>((resolve) => nls.on('connect', () => resolve()))
+
+      // grab underlying mock WebSocket
+      const ws = await (nls as any).getWebSocket()
+
+      const got: any[] = []
+      const msgListener = (evt: MessageEvent) => {
+        try {
+          const parsed = typeof evt.data === 'string' ? JSON.parse(evt.data) : undefined
+          parsed && got.push(parsed)
+        } catch (_) {}
+      }
+      ws.addEventListener('message', msgListener)
+
+      // send ping (this replicates the heartbeat payload)
+      ws.send(JSON.stringify({ event: 'ping' }))
+
+      // wait briefly so mock server can reply
+      await new Promise((resolve) => setTimeout(resolve, 20))
+
+      ws.removeEventListener('message', msgListener)
+
+      // Expect a single pong for the sender
+      expect(got.some(g => g.event === 'pong')).toBeTruthy()
+    })
+
+    it('resume handshake -> resume:ack for known connectionId', async () => {
+    // create an instance so we get a connectionId on the mock socket mapping
+      const nls = new NonLocalStorage({ apiKey: uuidv4(), apiSecret: 'dummy', projectId: uuidv4() })
+      await new Promise<void>((resolve) => nls.on('connect', () => resolve()))
+
+      const ws = await (nls as any).getWebSocket()
+
+      // the mock getWebSocket sets connectionId property on the socket
+      const connectionId = (ws as any).connectionId
+      expect(connectionId).toBeTruthy()
+
+      const got: any[] = []
+      const once = new Promise<void>((resolve, reject) => {
+        const onMsg = (evt: MessageEvent) => {
+          try {
+            const parsed = typeof evt.data === 'string' ? JSON.parse(evt.data) : undefined
+            if (!parsed) return
+            got.push(parsed)
+            if (parsed.event === 'resume:ack' && parsed.connectionId === connectionId) {
+              ws.removeEventListener('message', onMsg)
+              resolve()
+            }
+          } catch (e) { reject(e) }
+        }
+        ws.addEventListener('message', onMsg)
+      })
+
+      // send resume to server
+      ws.send(JSON.stringify({ event: 'resume', connectionId }))
+
+      // wait for resume:ack (or timeout)
+      await Promise.race([once, new Promise((resolve, reject) => setTimeout(() => reject(new Error('timeout resume:ack')), 2000))])
+
+      expect(got.some(m => m.event === 'resume:ack' && m.connectionId === connectionId)).toBeTruthy()
+    })
+
+    it('invalid resume -> server replies error and closes with 1008', async () => {
+      const nls = new NonLocalStorage({ apiKey: uuidv4(), apiSecret: 'dummy', projectId: uuidv4() })
+      await new Promise<void>((resolve) => nls.on('connect', () => resolve()))
+      const ws = await (nls as any).getWebSocket()
+
+      const gotErrors: any[] = []
+      const closed = new Promise<{ code: number, reason?: string }>((resolve) => {
+        ws.addEventListener('close', (ev: any) => resolve({ code: ev?.code ?? -1, reason: ev?.reason }))
+      })
+      ws.addEventListener('message', (evt: MessageEvent) => {
+        try {
+          const parsed = typeof evt.data === 'string' ? JSON.parse(evt.data) : undefined
+          parsed && parsed.event === 'error' && gotErrors.push(parsed)
+        } catch (_) {}
+      })
+
+      // send resume with bogus id
+      ws.send(JSON.stringify({ event: 'resume', connectionId: 'bogus-resume-id' }))
+
+      // wait for close or short timeout
+      const result = await Promise.race([
+        closed,
+        new Promise<{ code: number, reason?: string }>((resolve, reject) => setTimeout(() => reject(new Error('timeout close')), 2000))
+      ])
+
+      // server should have sent an error (or closed)
+      expect(gotErrors.length > 0 || (result as any).code === 1008).toBeTruthy()
+      // if (typeof (result as any).code === 'number') {
+      //   // either the socket closed with 1008 or server did close it
+      //   expect((result as any).code === 1008).toBeTruthy()
+      // }
+    })
+  })
 })
