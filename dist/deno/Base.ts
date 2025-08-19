@@ -234,7 +234,7 @@ export default class Base {
         // Token provider with initial token - validate and schedule refresh
         this.logger.log('debug', 'Using token provider with initial access token')
         try {
-          this.useAccessToken(this[CREDENTIALS].accessToken!)
+          this.useAccessTokenAndRememberToAcquireTheNext(this[CREDENTIALS].accessToken!)
         } catch (error) {
           // Initial token is invalid, acquire a new one immediately
           this.logger.log('warn', 'Initial access token is invalid, acquiring new token')
@@ -310,6 +310,32 @@ export default class Base {
   }
 
   /**
+  * Sets the access token and schedules automatic refresh before expiration.
+  * @internal
+  * @param accessToken - The access token to use for authentication.
+  *
+  * @remarks
+  * This function updates the current access token and schedules a refresh
+  * approximately two minutes before the token expires, ensuring continuous authentication.
+  */
+  private useAccessTokenAndRememberToAcquireTheNext (accessToken: string) {
+    if (!accessToken) throw new Error('No accessToken!')
+
+    const expiresIn = this.useAccessToken(accessToken)
+
+    // Schedule next token refresh
+    const refreshTime = Math.max(expiresIn - (2 * 60 * 1000), 1000) // At least 1 second
+    this.logger.log('debug', `Scheduling next token refresh in ${refreshTime}ms`)
+
+    setTimeout(() => {
+      this.isGettingAccessToken = this.acquireAccessToken()
+      this.isGettingAccessToken
+        .then(() => { this.isGettingAccessToken = undefined })
+        .catch(() => { this.isGettingAccessToken = undefined })
+    }, refreshTime)
+  }
+
+  /**
    * Acquire access token using the configured authentication method.
    * @internal
    */
@@ -336,18 +362,7 @@ export default class Base {
         throw new Error('No authentication method available for token acquisition')
       }
 
-      const expiresIn = this.useAccessToken(accessToken)
-
-      // Schedule next token refresh
-      const refreshTime = Math.max(expiresIn - (2 * 60 * 1000), 1000) // At least 1 second
-      this.logger.log('debug', `Scheduling next token refresh in ${refreshTime}ms`)
-
-      setTimeout(() => {
-        this.isGettingAccessToken = this.acquireAccessToken()
-        this.isGettingAccessToken
-          .then(() => { this.isGettingAccessToken = undefined })
-          .catch(() => { this.isGettingAccessToken = undefined })
-      }, refreshTime)
+      this.useAccessTokenAndRememberToAcquireTheNext(accessToken)
     } catch (e: any) {
       this.logger.log('error', `Access token acquisition failed: ${e?.message || e?.name || e?.type || e}`)
       throw e
