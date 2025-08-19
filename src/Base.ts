@@ -1,7 +1,7 @@
 import { getLocalId, setLocalId } from './local'
 import { deriveSymmetricKey, encrypt, decrypt } from './encryption'
 import uuidv4 from './uuidv4'
-import { JSONObj, InstanceOptions, KeyDerivationOptions, EncryptionSettingsInfos, EncryptionSettings, EncryptionHandler } from './types'
+import { JSONObj, InstanceOptions, KeyDerivationOptions, EncryptionSettingsInfos, EncryptionSettings, EncryptionHandler, Credentials } from './types'
 import getLogger, { Logger } from './logger'
 import decodeJwt from './decodeJwt'
 import { CREDENTIALS, ENCRYPTION_SETTINGS, PREVIOUS_ENCRYPTION_SETTINGS, ACCESS_TOKEN_EXPIRING_HANDLERS } from './symbols'
@@ -94,7 +94,7 @@ export default class Base {
   protected isGettingAccessToken?: Promise<void>
 
   /** @internal API credentials */
-  private [CREDENTIALS]: { projectId: string, apiKey?: string, apiSecret?: string, accessToken?: string }
+  private [CREDENTIALS]: Credentials
 
   /** @internal Current encryption settings */
   private [ENCRYPTION_SETTINGS]?: EncryptionSettings
@@ -111,12 +111,7 @@ export default class Base {
    * @param id - Optional unique identifier for this instance.
    */
   constructor (
-    credentials: {
-      apiKey?: string,
-      apiSecret?: string,
-      accessToken?: string,
-      projectId: string
-    },
+    credentials: Credentials,
     id?: string
   )
   /**
@@ -125,12 +120,7 @@ export default class Base {
    * @param options - Instance configuration options.
    */
   constructor (
-    credentials: {
-      apiKey?: string,
-      apiSecret?: string,
-      accessToken?: string,
-      projectId: string
-    },
+    credentials: Credentials,
     options?: InstanceOptions
   )
   /**
@@ -139,12 +129,7 @@ export default class Base {
    * @param idOrOptions - Either a string ID or instance options object.
    */
   constructor (
-    credentials: {
-      apiKey?: string,
-      apiSecret?: string,
-      accessToken?: string,
-      projectId: string
-    },
+    credentials: Credentials,
     idOrOptions: string | InstanceOptions | undefined = { class: DEFAULT_DURABLE_CACHE_CLASS, autoUpdateOldEncryptedValues: true, logLevel: 'warn' }
   ) {
     let options: InstanceOptions = { class: DEFAULT_DURABLE_CACHE_CLASS, logLevel: 'warn' }

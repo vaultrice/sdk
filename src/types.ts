@@ -86,6 +86,37 @@ export type EncryptionHandler = {
 }
 
 /**
+ * API credentials for authentication.
+ *
+ * You must provide either:
+ * - `apiKey` **and** `apiSecret` (Direct Authentication): The SDK manages token refresh automatically. Secrets are present in client code. Recommended for quick setup, prototypes, or client-heavy apps (use Origin Restriction for production).
+ * - `accessToken` (Short-Lived Access Token): No secrets in client code. Your backend generates and provides a temporary token. You are responsible for refreshing tokens when they expire. Recommended for environments with a backend and maximum secret protection.
+ *
+ * @property projectId - The unique project identifier (required).
+ * @property apiKey - API key for authentication (required if using Direct Authentication).
+ * @property apiSecret - API secret for authentication (required if using Direct Authentication).
+ * @property accessToken - Short-lived access token for authentication (required if using token-based authentication).
+ *
+ * @remarks
+ * See [Vaultrice SDK Authentication Methods](https://www.vaultrice.com/docs/security/#authentication-methods) for details.
+ *
+ * @example
+ * // Direct Authentication (SDK manages tokens)
+ * const credentials: Credentials = {
+ *   projectId: 'my-project-id',
+ *   apiKey: 'your-api-key',
+ *   apiSecret: 'your-api-secret'
+ * }
+ *
+ * // Short-Lived Access Token (no secrets in client)
+ * const credentials: Credentials = {
+ *   projectId: 'my-project-id',
+ *   accessToken: 'your-access-token'
+ * }
+ */
+export type Credentials = { projectId: string, apiKey?: string, apiSecret?: string, accessToken?: string }
+
+/**
  * Options for NonLocalStorage/SyncObject instances.
  */
 export type InstanceOptions = {

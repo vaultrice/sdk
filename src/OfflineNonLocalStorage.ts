@@ -6,7 +6,8 @@ import {
   LogLevel,
   StorageAdapter,
   ItemType,
-  ItemsType
+  ItemsType,
+  Credentials
 } from './types'
 import getLogger, { Logger } from './logger'
 import { getStorage, OutboxOp, isExpired, safeStorageRemove, safeStorageSet, isConnectionError, DEFAULT_TTL, processOutbox, afterProcessOutbox, startSweep, stopSweep } from './offlineHelpers'
@@ -67,7 +68,7 @@ async function handleConnect (
  * const value = await nls.getItem('key');
  */
 export default async function createOfflineNonLocalStorage (
-  credentials: { apiKey?: string, apiSecret?: string, accessToken?: string, projectId: string },
+  credentials: Credentials,
   idOrOptions?: string | OfflineSyncOptions
 ): Promise<NonLocalStorage> {
   let options: OfflineSyncOptions

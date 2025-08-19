@@ -6,7 +6,8 @@ import {
   ItemsType,
   SetItemsType,
   JSONObj,
-  InstanceOptions
+  InstanceOptions,
+  Credentials
 } from './types'
 import { ENCRYPTION_SETTINGS } from './symbols'
 
@@ -26,12 +27,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
    * @param id - Optional ID.
    */
   constructor (
-    credentials: {
-      apiKey?: string,
-      apiSecret?: string,
-      accessToken?: string,
-      projectId: string
-    },
+    credentials: Credentials,
     id?: string
   )
   /**
@@ -40,12 +36,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
    * @param options - Optional instance options.
    */
   constructor (
-    credentials: {
-      apiKey?: string,
-      apiSecret?: string,
-      accessToken?: string,
-      projectId: string
-    },
+    credentials: Credentials,
     options?: InstanceOptions
   )
   /**
@@ -54,12 +45,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
    * @param idOrOptions - Optional ID or instance options.
    */
   constructor (
-    credentials: {
-      apiKey?: string,
-      apiSecret?: string,
-      accessToken?: string,
-      projectId: string
-    },
+    credentials: Credentials,
     idOrOptions?: string | InstanceOptions | undefined
   ) {
     if (typeof idOrOptions === 'string') {

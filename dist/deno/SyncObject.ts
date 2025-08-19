@@ -3,7 +3,8 @@ import {
   ItemType,
   InstanceOptions,
   SyncObjectMeta,
-  JoinedConnections
+  JoinedConnections,
+  Credentials
 } from './types'
 
 export const reservedProps = [
@@ -32,12 +33,7 @@ export const reservedProps = [
  * @returns Proxy object with live sync and an `id` property.
  */
 export default async function createSyncObject<T extends object> (
-  credentials: {
-    apiKey?: string,
-    apiSecret?: string,
-    accessToken?: string,
-    projectId: string
-  },
+  credentials: Credentials,
   idOrOptions?: string | InstanceOptions
 ): Promise<T & SyncObjectMeta> {
   const nls =

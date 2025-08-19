@@ -2,7 +2,8 @@ import {
   OfflineSyncOptions,
   SyncObjectMeta,
   LogLevel,
-  ItemType
+  ItemType,
+  Credentials
 } from './types'
 import { DEFAULT_DURABLE_CACHE_CLASS, getId } from './Base'
 import createSyncObject, { reservedProps } from './SyncObject'
@@ -19,7 +20,7 @@ import { getStorage, DEFAULT_TTL, OutboxOp, isExpired, safeStorageRemove, safeSt
  * @returns A proxy object implementing both local and remote sync behaviors.
  */
 export default async function createOfflineSyncObject<T extends object> (
-  credentials: { apiKey?: string, apiSecret?: string, accessToken?: string, projectId: string },
+  credentials: Credentials,
   idOrOptions?: string | OfflineSyncOptions
 ): Promise<T & SyncObjectMeta> {
   let options: OfflineSyncOptions

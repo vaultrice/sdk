@@ -1,6 +1,6 @@
 import Base from './Base'
 import { CREDENTIALS, ENCRYPTION_SETTINGS, ERROR_HANDLERS, EVENT_HANDLERS, WEBSOCKET } from './symbols'
-import { ItemType, JSONObj, InstanceOptions, JoinedConnections, JoinedConnection, LeavedConnection } from './types'
+import { ItemType, JSONObj, InstanceOptions, JoinedConnections, JoinedConnection, LeavedConnection, Credentials } from './types'
 
 // const inMemoryResumeStore: { [key: string]: string } = {}
 
@@ -102,12 +102,7 @@ export default class WebSocketFunctions extends Base {
    * @param id - Optional unique identifier for this instance.
    */
   constructor (
-    credentials: {
-      apiKey?: string,
-      apiSecret?: string,
-      accessToken?: string,
-      projectId: string
-    },
+    credentials: Credentials,
     id?: string
   )
   /**
@@ -116,12 +111,7 @@ export default class WebSocketFunctions extends Base {
    * @param options - Instance configuration options.
    */
   constructor (
-    credentials: {
-      apiKey?: string,
-      apiSecret?: string,
-      accessToken?: string,
-      projectId: string
-    },
+    credentials: Credentials,
     options?: InstanceOptions
   )
   /**
@@ -130,12 +120,7 @@ export default class WebSocketFunctions extends Base {
    * @param idOrOptions - Either a string ID or instance options object.
    */
   constructor (
-    credentials: {
-      apiKey?: string,
-      apiSecret?: string,
-      accessToken?: string,
-      projectId: string
-    },
+    credentials: Credentials,
     idOrOptions?: string | InstanceOptions | undefined
   ) {
     // @ts-ignore
