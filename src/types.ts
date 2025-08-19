@@ -388,17 +388,24 @@ export interface SyncObjectMeta {
  *
  * @remarks
  * Implement this interface to provide custom storage backends for offline sync.
- * Adapters should handle serialization and deserialization of values.
+ * Adapters must serialize the value object when storing, and deserialize it when retrieving.
+ * The value passed to `set(key, value)` is an object matching the ItemType shape:
+ * { value, expiresAt, createdAt, updatedAt, keyVersion? }
  *
  * @example
- * ```typescript
  * class MyAdapter implements StorageAdapter {
- *   async get(key: string): Promise<any | null> { ... }
- *   async set(key: string, value: any): Promise<void> { ... }
- *   async remove(key: string): Promise<void> { ... }
- *   async getAll(): Promise<Record<string, any>> { ... }
+ *   constructor(options: { projectId: string; class: string; id: string; ttl: number }) { ... }
+ *   async set(key: string, value: any): Promise<void> {
+ *     // Serialize value before storing
+ *     localStorage.setItem(key, JSON.stringify(value))
+ *   }
+ *   async get(key: string): Promise<any | null> {
+ *     // Deserialize value when retrieving
+ *     const raw = localStorage.getItem(key)
+ *     return raw ? JSON.parse(raw) : null
+ *   }
+ *   ...
  * }
- * ```
  */
 export interface StorageAdapter {
   /**

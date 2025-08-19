@@ -19,7 +19,7 @@ type OfflineSyncStorageOption = OfflineSyncOptions['storage']
  * @internal
  */
 export function getStorage (
-  storageOptions: { projectId: string, class?: string, id?: string, ttl?: number },
+  storageOptions: { projectId: string, class: string, id: string, ttl: number },
   storageCreation: OfflineSyncStorageOption
 ): StorageAdapter {
   let storage: StorageAdapter | undefined
