@@ -721,7 +721,7 @@ export default class WebSocketFunctions extends Base {
 
       // Server-side handshake: record/refresh assigned connectionId
       if ((evName === 'connected' || evName === 'resume:ack') && parsed.connectionId) {
-        this.saveConnectionId(parsed.connectionId)
+        this.connectionId = parsed.connectionId
         // optionally notify user-level 'connected' or 'resume:ack' events:
         // we don't add a custom event emitter; consumers can listen to message events if desired
         // prevent user handlers from getting the handshake messages
@@ -737,7 +737,7 @@ export default class WebSocketFunctions extends Base {
         const payload = parsed.payload
         if (typeof payload === 'string' && payload.toLowerCase().includes('invalid resume')) {
           this.logger.log('warn', 'server signalled invalid resume token — clearing saved connectionId')
-          this.clearSavedConnectionId()
+          this.connectionId = undefined
           if (typeof (evt as any).stopImmediatePropagation === 'function') {
             try { (evt as any).stopImmediatePropagation() } catch (_) {}
           }
@@ -752,13 +752,10 @@ export default class WebSocketFunctions extends Base {
     ws.addEventListener('open', () => {
       this.isConnected = true
       this.reconnectAttempts = 0
-      try {
-        const saved = this.getSavedConnectionId()
-        if (saved) {
-          // send an immediate resume handshake (server expects: { event: 'resume', connectionId })
-          try { ws.send(JSON.stringify({ event: 'resume', connectionId: saved })) } catch (_) {}
-        }
-      } catch (e) { /* ignore */ }
+      if (this.connectionId) {
+        // send an immediate resume handshake (server expects: { event: 'resume', connectionId })
+        try { ws.send(JSON.stringify({ event: 'resume', connectionId: this.connectionId })) } catch (_) {}
+      }
       // start the heartbeat
       this.startHeartbeat()
     }, { once: true })
@@ -770,7 +767,7 @@ export default class WebSocketFunctions extends Base {
       // server rejected resume token: clear saved resume id so next connect creates a fresh session
       // if (ev?.code === 1008) {
       //   this.logger.log('warn', 'WebSocket closed with 1008 — clearing saved resume token')
-      //   this.clearSavedConnectionId()
+      //   this.connectionId = undefined
       // }
     }, { once: true })
 
@@ -792,7 +789,7 @@ export default class WebSocketFunctions extends Base {
     ws.addEventListener('close', (ev) => {
       if (ev?.code === 1008) {
         this.logger.log('warn', 'WebSocket closed with 1008 during reconnection')
-        this.clearSavedConnectionId()
+        this.connectionId = undefined
       }
       if (ev?.reason && ev?.reason.indexOf('TierLimitExceeded') > -1) {
         this.autoReconnect = false
@@ -966,37 +963,13 @@ export default class WebSocketFunctions extends Base {
     return ws
   }
 
-  private saveConnectionId (connectionId: string) {
-    this.connectionId = connectionId
-    // if (!this.resumeStorageKey) return
-    // if (typeof window !== 'undefined' && window.localStorage) {
-    //   window.localStorage.setItem(this.resumeStorageKey, connectionId)
-    // } else {
-    //   inMemoryResumeStore[this.resumeStorageKey] = connectionId
-    // }
-    this.logger.log('debug', `saved connectionId ${connectionId}`)
-  }
-
-  private getSavedConnectionId (): string | undefined {
-    return this.connectionId
-    // if (!this.resumeStorageKey) return null
-    // if (typeof window !== 'undefined' && window.localStorage) {
-    //   return window.localStorage.getItem(this.resumeStorageKey)
-    // } else {
-    //   return inMemoryResumeStore[this.resumeStorageKey]
-    // }
-  }
-
-  private clearSavedConnectionId () {
-    this.connectionId = undefined
-    // if (!this.resumeStorageKey) return
-    // if (typeof window !== 'undefined' && window.localStorage) {
-    //   window.localStorage.removeItem(this.resumeStorageKey)
-    // } else {
-    //   delete inMemoryResumeStore[this.resumeStorageKey]
-    // }
-  }
-
+  /**
+   * Clears the pong response timeout timer.
+   *
+   * @remarks
+   * This stops waiting for a pong response from the server. Should be called
+   * whenever a pong is received or when the heartbeat is stopped.
+   */
   private clearPongTimer () {
     if (this.pongTimer) {
       clearTimeout(this.pongTimer)
@@ -1004,6 +977,13 @@ export default class WebSocketFunctions extends Base {
     }
   }
 
+  /**
+   * Starts the pong response timeout timer.
+   *
+   * @remarks
+   * If a pong response is not received within the configured timeout (`pongTimeout`),
+   * the WebSocket connection will be closed and a reconnect will be triggered if enabled.
+   */
   private startPongTimer () {
     this.clearPongTimer()
     this.pongTimer = setTimeout(() => {
@@ -1013,6 +993,13 @@ export default class WebSocketFunctions extends Base {
     }, this.pongTimeout)
   }
 
+  /**
+   * Stops the heartbeat mechanism.
+   *
+   * @remarks
+   * Clears both the periodic ping timer and the pong timeout timer.
+   * Should be called when the WebSocket connection is closed or lost.
+   */
   private stopHeartbeat () {
     if (this.pingTimer) {
       clearInterval(this.pingTimer)
@@ -1021,6 +1008,14 @@ export default class WebSocketFunctions extends Base {
     this.clearPongTimer()
   }
 
+  /**
+   * Starts the heartbeat mechanism to keep the WebSocket connection alive.
+   *
+   * @remarks
+   * Sends periodic ping messages at the configured interval (`pingInterval`).
+   * Each ping starts a pong timeout timer. If a pong is not received in time,
+   * the connection will be closed and a reconnect will be attempted if enabled.
+   */
   private startHeartbeat () {
     this.stopHeartbeat()
     const ws = this[WEBSOCKET]

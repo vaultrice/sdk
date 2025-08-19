@@ -37,7 +37,7 @@ export default class Base {
    * @internal API base URL
    * @private
    */
-  protected static basePath: string = 'https://api.dev.vaultrice.app'
+  protected static basePath: string = 'https://api.vaultrice.app'
 
   /**
    * Optional encryption handler factory function
