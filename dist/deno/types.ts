@@ -88,14 +88,16 @@ export type EncryptionHandler = {
 /**
  * API credentials for authentication.
  *
- * You must provide either:
+ * You must provide one of:
  * - `apiKey` **and** `apiSecret` (Direct Authentication): The SDK manages token refresh automatically. Secrets are present in client code. Recommended for quick setup, prototypes, or client-heavy apps (use Origin Restriction for production).
  * - `accessToken` (Short-Lived Access Token): No secrets in client code. Your backend generates and provides a temporary token. You are responsible for refreshing tokens when they expire. Recommended for environments with a backend and maximum secret protection.
+ * - `getAccessToken` (Token Provider Function): The SDK calls this function whenever a valid token is needed. Provides the cleanest separation of concerns. Recommended for most production scenarios.
  *
  * @property projectId - The unique project identifier (required).
  * @property apiKey - API key for authentication (required if using Direct Authentication).
  * @property apiSecret - API secret for authentication (required if using Direct Authentication).
- * @property accessToken - Short-lived access token for authentication (required if using token-based authentication).
+ * @property accessToken - Short-lived access token for authentication (required if using token-based authentication, optional if using token provider for initial token).
+ * @property getAccessToken - Function that returns a valid access token (required if using token provider authentication).
  *
  * @remarks
  * See [Vaultrice SDK Authentication Methods](https://www.vaultrice.com/docs/security/#authentication-methods) for details.
@@ -108,13 +110,77 @@ export type EncryptionHandler = {
  *   apiSecret: 'your-api-secret'
  * }
  *
- * // Short-Lived Access Token (no secrets in client)
+ * // Short-Lived Access Token (manual token management)
  * const credentials: Credentials = {
  *   projectId: 'my-project-id',
  *   accessToken: 'your-access-token'
  * }
+ *
+ * // Token Provider Function (recommended)
+ * const credentials: Credentials = {
+ *   projectId: 'my-project-id',
+ *   getAccessToken: async () => {
+ *     // Your custom token acquisition logic
+ *     // Example: Backend endpoint to generate a token
+ *     // --- Backend: Generate token ---
+ *     // import { NonLocalStorage } from '@vaultrice/sdk';
+ *     // const accessToken = await NonLocalStorage.retrieveAccessToken(
+ *     //   'your-project-id',
+ *     //   'your-api-key',
+ *     //   'your-api-secret'
+ *     // );
+ *     // return { accessToken };
+ *     // --- End Backend ---
+ *     const response = await fetch('/api/auth/vaultrice-token', {
+ *       method: 'GET',
+ *       headers: { 'Authorization': `Bearer ${userToken}` }
+ *     });
+ *     if (!response.ok) throw new Error('Failed to get token');
+ *     const { accessToken } = await response.json();
+ *     return accessToken;
+ *   }
+ * }
+ *
+ * // Token Provider Function with initial token (optimal performance)
+ * const credentials: Credentials = {
+ *   projectId: 'my-project-id',
+ *   accessToken: 'initial-token-from-ssr-or-cache', // Skip first network call
+ *   getAccessToken: async () => {
+ *     // Called only when token needs refresh
+ *     const response = await fetch('/api/auth/vaultrice-token');
+ *     const { accessToken } = await response.json();
+ *     return accessToken;
+ *   }
+ * }
  */
-export type Credentials = { projectId: string, apiKey?: string, apiSecret?: string, accessToken?: string }
+export type Credentials = {
+  projectId: string;
+  apiKey?: string;
+  apiSecret?: string;
+  accessToken?: string;
+  /**
+   * Function that provides access tokens when needed.
+   * Called automatically by the SDK when a token is required or about to expire.
+   * Should return a valid access token string.
+   *
+   * @returns Promise resolving to a valid access token
+   * @throws Should throw an error if token acquisition fails
+   *
+   * @example
+   * ```typescript
+   * getAccessToken: async () => {
+   *   const response = await fetch('/api/auth/vaultrice-token', {
+   *     method: 'GET',
+   *     headers: { 'Authorization': `Bearer ${userToken}` }
+   *   });
+   *   if (!response.ok) throw new Error('Failed to get token');
+   *   const { accessToken } = await response.json();
+   *   return accessToken;
+   * }
+   * ```
+   */
+  getAccessToken?: () => Promise<string>;
+}
 
 /**
  * Options for NonLocalStorage/SyncObject instances.

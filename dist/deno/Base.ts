@@ -105,6 +105,9 @@ export default class Base {
   /** @internal Handlers for access token expiring event */
   private [ACCESS_TOKEN_EXPIRING_HANDLERS]: Array<() => void> = []
 
+  /** @internal Custom token provider function */
+  private getAccessTokenFn?: () => Promise<string>
+
   /**
    * Create a Base instance with string ID.
    * @param credentials - API credentials containing apiKey, apiSecret, and projectId.
@@ -142,6 +145,7 @@ export default class Base {
     }
 
     this.logger = getLogger(options.logLevel)
+
     if (!credentials ||
       typeof credentials !== 'object' ||
       typeof credentials.projectId !== 'string'
@@ -149,21 +153,28 @@ export default class Base {
       throw new Error('Invalid credentials!')
     }
 
-    if (
-      typeof credentials.apiKey !== 'string' &&
-      typeof credentials.apiSecret !== 'string' &&
-      typeof credentials.accessToken !== 'string'
-    ) {
-      throw new Error('Invalid credentials! (apiKey + apiSecret or accessToken)')
+    // Determine authentication method
+    const hasApiKeySecret = typeof credentials.apiKey === 'string' && typeof credentials.apiSecret === 'string'
+    const hasAccessToken = typeof credentials.accessToken === 'string'
+    const hasTokenProvider = typeof credentials.getAccessToken === 'function'
+
+    // Count primary authentication methods (accessToken can be combined with getAccessToken)
+    const primaryAuthMethods = [hasApiKeySecret, hasTokenProvider].filter(Boolean).length
+    const hasStandaloneAccessToken = hasAccessToken && !hasTokenProvider
+
+    if (primaryAuthMethods === 0 && !hasStandaloneAccessToken) {
+      throw new Error('Invalid credentials! Must provide one of: (apiKey + apiSecret), accessToken, or getAccessToken function')
     }
 
-    if (
-      (typeof credentials.apiKey === 'string' &&
-      typeof credentials.apiSecret !== 'string') ||
-      (typeof credentials.apiKey !== 'string' &&
-      typeof credentials.apiSecret === 'string')
-    ) {
-      throw new Error('Invalid credentials! (apiKey and apiSecret necessary)')
+    if (primaryAuthMethods > 1 || (hasStandaloneAccessToken && primaryAuthMethods > 0)) {
+      throw new Error('Invalid credentials! Provide only one primary authentication method. You can combine getAccessToken with an initial accessToken for performance.')
+    }
+
+    // Validate apiKey/apiSecret pair if provided
+    if (credentials.apiKey || credentials.apiSecret) {
+      if (!hasApiKeySecret) {
+        throw new Error('Invalid credentials! Both apiKey and apiSecret are required when using direct authentication')
+      }
     }
 
     if (typeof idOrOptions !== 'string' && !idOrOptions?.id) {
@@ -176,10 +187,17 @@ export default class Base {
     if (
       typeof this[CREDENTIALS].apiKey !== 'string' &&
       typeof this[CREDENTIALS].apiSecret !== 'string' &&
-      typeof this[CREDENTIALS].accessToken === 'string'
+      (typeof this[CREDENTIALS].accessToken === 'string' || credentials.getAccessToken)
     ) {
       delete this[CREDENTIALS].apiKey
       delete this[CREDENTIALS].apiSecret
+    }
+
+    // Store the token provider function
+    if (credentials.getAccessToken) {
+      this.getAccessTokenFn = credentials.getAccessToken
+      // Clean up credentials object - don't store the function
+      delete this[CREDENTIALS].getAccessToken
     }
 
     this.class = options.class || DEFAULT_DURABLE_CACHE_CLASS
@@ -210,10 +228,37 @@ export default class Base {
     if (options.idSignature) this.idSignature = options.idSignature
     if (this.idSignature) this.idSignatureKeyVersion = options.idSignatureKeyVersion
 
-    if (!this[CREDENTIALS].accessToken) {
-      this.isGettingAccessToken = this.getAccessToken()
-      this.isGettingAccessToken.then(() => { this.isGettingAccessToken = undefined }).catch(() => { this.isGettingAccessToken = undefined })
+    // Initialize token acquisition based on authentication method
+    if (hasTokenProvider) {
+      if (hasAccessToken) {
+        // Token provider with initial token - validate and schedule refresh
+        this.logger.log('debug', 'Using token provider with initial access token')
+        try {
+          this.useAccessToken(this[CREDENTIALS].accessToken!)
+        } catch (error) {
+          // Initial token is invalid, acquire a new one immediately
+          this.logger.log('warn', 'Initial access token is invalid, acquiring new token')
+          this[CREDENTIALS].accessToken = undefined
+          this.isGettingAccessToken = this.acquireAccessToken()
+          this.isGettingAccessToken
+            .then(() => { this.isGettingAccessToken = undefined })
+            .catch(() => { this.isGettingAccessToken = undefined })
+        }
+      } else {
+        // Token provider without initial token - acquire immediately
+        this.isGettingAccessToken = this.acquireAccessToken()
+        this.isGettingAccessToken
+          .then(() => { this.isGettingAccessToken = undefined })
+          .catch(() => { this.isGettingAccessToken = undefined })
+      }
+    } else if (!hasAccessToken) {
+      // Direct authentication - acquire token
+      this.isGettingAccessToken = this.acquireAccessToken()
+      this.isGettingAccessToken
+        .then(() => { this.isGettingAccessToken = undefined })
+        .catch(() => { this.isGettingAccessToken = undefined })
     }
+    // If hasAccessToken && !hasTokenProvider, we're in manual mode - do nothing
   }
 
   /**
@@ -265,18 +310,46 @@ export default class Base {
   }
 
   /**
-   * Acquire and manage access tokens for API authentication.
+   * Acquire access token using the configured authentication method.
    * @internal
-   * @remarks
-   * Automatically refreshes tokens before expiry and handles JWT decoding.
    */
-  private async getAccessToken () {
+  private async acquireAccessToken (): Promise<void> {
     try {
-      const response = await Base.retrieveAccessToken(this[CREDENTIALS].projectId, this[CREDENTIALS].apiKey as string, this[CREDENTIALS].apiSecret as string)
-      const expiresIn = this.useAccessToken(response)
-      setTimeout(() => this.getAccessToken(), (expiresIn - (2 * 60 * 1000)))
+      let accessToken: string
+
+      if (this.getAccessTokenFn) {
+        // Use custom token provider
+        this.logger.log('debug', 'Acquiring access token via custom provider')
+        accessToken = await this.getAccessTokenFn()
+        if (typeof accessToken !== 'string' || !accessToken) {
+          throw new Error('getAccessToken function must return a non-empty string')
+        }
+      } else if (this[CREDENTIALS].apiKey && this[CREDENTIALS].apiSecret) {
+        // Use direct authentication
+        this.logger.log('debug', 'Acquiring access token via API key/secret')
+        accessToken = await Base.retrieveAccessToken(
+          this[CREDENTIALS].projectId,
+          this[CREDENTIALS].apiKey,
+          this[CREDENTIALS].apiSecret
+        )
+      } else {
+        throw new Error('No authentication method available for token acquisition')
+      }
+
+      const expiresIn = this.useAccessToken(accessToken)
+
+      // Schedule next token refresh
+      const refreshTime = Math.max(expiresIn - (2 * 60 * 1000), 1000) // At least 1 second
+      this.logger.log('debug', `Scheduling next token refresh in ${refreshTime}ms`)
+
+      setTimeout(() => {
+        this.isGettingAccessToken = this.acquireAccessToken()
+        this.isGettingAccessToken
+          .then(() => { this.isGettingAccessToken = undefined })
+          .catch(() => { this.isGettingAccessToken = undefined })
+      }, refreshTime)
     } catch (e: any) {
-      this.logger.log('error', `Retrieving access token failed: ${e?.message || e?.name || e?.type || e}`)
+      this.logger.log('error', `Access token acquisition failed: ${e?.message || e?.name || e?.type || e}`)
       throw e
     }
   }
@@ -286,15 +359,27 @@ export default class Base {
    *
    * @param accessToken - The access token string to set.
    * @returns {number} token expiration in milliseconds from now
+   *
+   * @remarks
+   * When using the token provider authentication method, you typically don't need
+   * to call this directly - the SDK handles it automatically.
    */
   public useAccessToken (accessToken: string): number {
-    if (typeof accessToken !== 'string' || !accessToken) throw new Error('accessToken not valid!')
+    if (typeof accessToken !== 'string' || !accessToken) {
+      throw new Error('accessToken not valid!')
+    }
+
     const decodedToken = decodeJwt(accessToken)
     this[CREDENTIALS].accessToken = accessToken
+
     const expiresIn = (decodedToken.payload.exp as number) - Date.now()
+    if ((expiresIn - (2 * 60 * 1000)) < 0) throw new Error('accessToken not valid anymore')
+
+    // Notify handlers about impending expiration
     setTimeout(() => {
       this[ACCESS_TOKEN_EXPIRING_HANDLERS].forEach((h: () => void) => h())
-    }, (expiresIn - (2 * 60 * 1000)))
+    }, Math.max(expiresIn - (2 * 60 * 1000), 0))
+
     return expiresIn
   }
 

@@ -3,11 +3,29 @@
 [![Tests](https://github.com/vaultrice/sdk/workflows/node/badge.svg)](https://github.com/vaultrice/sdk/actions?query=workflow%3Anode)
 [![npm version](https://img.shields.io/npm/v/@vaultrice/sdk.svg?style=flat-square)](https://www.npmjs.com/package/@vaultrice/sdk)
 
-A secure, real-time, cloud-based storage SDK with a familiar `localStorage`-like API — enhanced for cross-device, cross-domain sync, and optional end-to-end encryption.
+A secure, real-time cloud storage SDK with a familiar `localStorage`-like API — enhanced for cross-device, cross-domain sync, optional end-to-end encryption (E2EE), presence, and optional offline-first usage.
 
-> Vaultrice is ideal for state sharing between tabs, browsers, devices, or domains — with built-in real-time updates and optional encryption.
+> Vaultrice is ideal for state sharing between tabs, browsers, devices, or domains — with built-in real-time updates and optional encryption... without managing custom backend WebSocket infrastructure.
 
 > **Vaultrice offers a free tier — [get started](https://www.vaultrice.app/register) without having to pay!**  
+
+---
+
+## Table of contents
+
+1. [Install](#-installation)
+2. [Quick start](#-quick-start)
+3. [Authentication](#-authentication)
+4. [Feature overview](#-feature-overview)
+4. [API overview](#-api-overview)
+6. [Presence & messaging](#-presence--messaging)
+7. [End-to-end encryption (E2EE)](#-end-to-end-encryption-e2ee)
+8. [SyncObject (reactive object)](#-syncobject-reactive-object)
+9. [Offline-first APIs](#-offline-first-apis)
+10. [Durable Object Location Strategy](#-durable-object-location-strategy)
+11. [Which API Should I Use?](#-which-api-should-i-use)
+12. [Real-World Examples](#-real-world-examples)
+12. [Support](#-support)
 
 ---
 
@@ -15,22 +33,24 @@ A secure, real-time, cloud-based storage SDK with a familiar `localStorage`-like
 
 ```bash
 npm install @vaultrice/sdk
+# or
+yarn add @vaultrice/sdk
 ```
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Quick start
 
 ```ts
 import { NonLocalStorage } from '@vaultrice/sdk'
 
 const nls = new NonLocalStorage({
   projectId: 'your-project-id',
+  apiKey: 'your-api-key',
   apiSecret: 'your-api-secret'
-}, 'your-id') // optional unique object ID
+}, 'your-object-id') // optional explicit ID
 
 await nls.setItem('key', 'value')
-
 const item = await nls.getItem('key')
 console.log(item?.value) // 'value'
 ```
@@ -55,7 +75,7 @@ console.log(item?.value) // 'value'
 
 ---
 
-## 📚 API Reference
+## 📚 API overview
 
 ### Constructor
 
@@ -332,94 +352,50 @@ await collabDoc.leave()
 
 ---
 
-## Authentication Options
+## 🔐 Authentication
 
-The Vaultrice SDK supports two ways to authenticate, depending on how you want to manage credentials and token lifetimes.
+The SDK supports **three** authentication approaches — choose based on your threat model and architecture:
 
----
+1. **apiKey + apiSecret** (SDK automatically fetches and refreshes short-lived `accessToken`)
 
-### 1. **Using apiKey + apiSecret (automatic token management)**
+   * Easiest to use for quick builds and server-side code.
+   * If used in clients, combine with origin restrictions or a proxy.
 
-You can initialize the SDK directly with your `apiKey` and `apiSecret`.  
-The SDK will automatically request an `accessToken` from the Vaultrice API and refresh it periodicaly.
+2. **accessToken** (short-lived token, e.g. \~1 hour) — manual refresh
+
+   * Your backend issues a token and the client receives it.
+   * You are responsible for refreshing the token before expiry.
+
+3. **getAccessToken** (async function that returns a token) — recommended for production
+
+   * The SDK calls the function when it needs a token or when a token is close to expiry.
+   * You can optionally provide an initial `accessToken` together with `getAccessToken` for immediate use (the SDK will validate & auto-refresh as needed).
+
+### Example: token-provider (recommended)
 
 ```ts
-import { NonLocalStorage } from '@vaultrice/sdk';
-
 const nls = new NonLocalStorage({
-  projectId: 'your-project-id',
-  apiKey: 'your-api-key',
-  apiSecret: 'your-api-secret'
-}, 'your-object-id');
-````
-
-**Details:**
-
-* Automatic token refresh without extra setup.
-* Keys remain valid until you rotate or revoke them.
-* You can combine this with additional security controls such as [API key origin restrictions](https://www.vaultrice.com/docs/security#sf1) or server-side proxying if desired.
-
----
-
-### 2. **Using a short-lived accessToken (lifetime \~1 hour)**
-
-Instead of passing `apiKey` and `apiSecret` to the client, you can generate a short-lived access token on your own server using the Vaultrice API, then pass it to the SDK.
-
-```javascript
-// Example: client receives `accessToken` from your backend
-// i.e.
-const accessToken = await NonLocalStorage.retrieveAccessToken('your-project-id', 'your-api-key', 'your-api-secret');
-
-// and in your client:
-const nls = new NonLocalStorage({
-  projectId: 'your-project-id',
-  accessToken: '<short-lived-access-token>'
-}, 'your-object-id');
-// or
-const syncObj = await createSyncObject({
-  projectId: 'your-project-id',
-  accessToken: '<short-lived-access-token>'
-}, 'your-object-id')
-
-// and to refresh it:
-nls.useAccessToken(accessToken);
-// or
-syncObj.useAccessToken(accessToken);
+  projectId: 'my-project-id',
+  accessToken: 'initial-token-if-available',
+  getAccessToken: async () => {
+    // call your backend to get a fresh token
+    const r = await fetch('/api/vaultrice-token')
+    if (!r.ok) throw new Error('token fetch failed')
+    const { accessToken } = await r.json()
+    return accessToken
+  }
+})
 ```
 
-**Details:**
-
-* Token lifetime is short.
-* The SDK does not automatically refresh this token — when it expires, you request a new one from your backend.
-* Useful if you want to avoid sending `apiSecret` to certain environments.
-
-### Access Token Expiring Event
-
-You can register a handler to be notified shortly before the access token expires (useful for refreshing tokens or prompting the user):
+### Access token expiry hooks (if no getAccessToken defined)
 
 ```ts
-// For NonLocalStorage
 nls.onAccessTokenExpiring(() => {
-  // Called ~2 minutes before token expiry
-  refreshTokenOrPromptUser()
+  // ~2 minutes before expiry - useful to prefetch a token or show UX
+  const token = await refreshTokenFromBackend()
+  nls.useAccessToken(token)
 })
-
-// Remove a previously registered handler
-nls.offAccessTokenExpiring(refreshTokenOrPromptUser)
-
-// For SyncObject
-syncObj.onAccessTokenExpiring(() => {
-  // Called ~2 minutes before token expiry
-  refreshTokenOrPromptUser()
-})
-
-syncObj.offAccessTokenExpiring(refreshTokenOrPromptUser)
 ```
-
-**Parameters:**
-- `handler`: A callback function invoked before the access token expires.
-
-This allows you to handle token renewal or notify users before authentication
 
 ---
 
@@ -435,6 +411,102 @@ This allows you to handle token renewal or notify users before authentication
 
 ---
 
+## 📚 API overview
+
+### Constructor
+
+```ts
+new NonLocalStorage(credentials, options?)
+```
+
+**credentials**: `{ projectId, apiKey?, apiSecret?, accessToken?, getAccessToken? }`
+**options**: `{ id?, class?, ttl?, passphrase?, getEncryptionHandler?, ... }`
+
+### Storage API (familiar)
+
+```ts
+await nls.setItem('key', value)
+const item = await nls.getItem('key') // { value, createdAt, updatedAt, expiresAt, keyVersion? }
+await nls.setItems({ key1: { value }, key2: { value } })
+await nls.getItems(['key1','key2'])
+await nls.getAllKeys()
+await nls.getAllItems()
+await nls.removeItem('key')
+await nls.removeItems(['k1','k2'])
+await nls.clear()
+```
+
+### Events & realtime
+
+```ts
+nls.on('connect', () => {})
+nls.on('disconnect', () => {})
+nls.on('message', msg => {})
+nls.on('setItem', evt => {})                     // all
+nls.on('setItem', 'myKey', evt => {})            // key-specific
+nls.on('removeItem', evt => {})
+nls.on('error', e => {})
+nls.off('setItem', handler)
+```
+
+### Send messages
+
+```ts
+nls.send({ type: 'chat', message: 'hi' })                 // via WebSocket
+await nls.send({ type: 'notice' }, { transport: 'http' }) // via HTTP (also reaches sender)
+```
+
+
+## 👥 Presence & messaging
+
+```ts
+await nls.join({ userId: 'u1', name: 'Alice' })  // announces presence
+await nls.leave()                                 // leave presence
+const conns = await nls.getJoinedConnections()   // get {connectionId, joinedAt, data}
+nls.on('presence:join', c => {})                 // listen for joins
+nls.on('presence:leave', c => {})                // listen for leaves
+```
+
+Messages sent through `nls.send` with `transport: 'ws'` are broadcast to other connected clients (not echoed to sender). `transport: 'http'` reaches all clients including sender.
+
+---
+
+## 🔐 End-to-end encryption (E2EE)
+
+Enable by passing `passphrase` or `getEncryptionHandler` when constructing:
+
+```ts
+const nls = new NonLocalStorage(credentials, {
+  id: 'object-id',
+  passphrase: 'super secret'
+})
+
+await nls.getEncryptionSettings()   // fetch salt + key version
+await nls.setItem('secret', 'value') // automatically encrypted when needed
+```
+
+* The SDK supports key versioning and lazy decryption of previous keys.
+* Use `rotateEncryption()` to create a new key version.
+
+---
+
+## 🧩 SyncObject (reactive object)
+
+High-level reactive object API that syncs fields automatically across clients with presence and messaging:
+
+```ts
+import { createSyncObject } from '@vaultrice/sdk'
+
+const doc = await createSyncObject(credentials, 'doc-123')
+doc.title = 'Hello'             // auto-sync to other clients
+console.log(doc.title)          // for another client
+doc.on('setItem', (evt) => {})  // or additionally listen to property changes
+await doc.join({ name: 'Bob' }) // presence
+await doc.send({ type: 'cursor', x: 10 })
+```
+
+---
+
 ## 📴 Offline-First APIs
 
 Vaultrice now supports **offline-first** storage and sync, making your app resilient to network interruptions.
@@ -447,13 +519,13 @@ A drop-in replacement for `NonLocalStorage` that works offline and automatically
 import { createOfflineNonLocalStorage } from '@vaultrice/sdk'
 
 const nls = await createOfflineNonLocalStorage(
-  { projectId: 'your-project-id', apiSecret: 'your-api-secret' },
+  { projectId: 'your-project-id', apiKey: 'your-api-key', apiSecret: 'your-api-secret' },
   { id: 'your-id', ttl: 60000 }
 )
 
 await nls.setItem('key', 'value') // Works offline!
 const item = await nls.getItem('key')
-console.log(item?.value) // 'value'
+console.log(item.value) // 'value'
 ```
 
 - **Local-first:** Reads/writes use local storage when offline.
@@ -469,7 +541,7 @@ A reactive object that syncs properties locally and remotely, with offline suppo
 import { createOfflineSyncObject } from '@vaultrice/sdk'
 
 const obj = await createOfflineSyncObject(
-  { projectId: 'your-project-id', apiSecret: 'your-api-secret' },
+  { projectId: 'your-project-id', apiKey: 'your-api-key', apiSecret: 'your-api-secret' },
   { id: 'your-id', ttl: 60000 }
 )
 
@@ -496,7 +568,7 @@ Pass your adapter via the `storage` option when creating an offline instance:
 import { createOfflineNonLocalStorage } from '@vaultrice/sdk'
 
 // Example: a minimal custom adapter
-const myAdapter = {
+class MyAdapter {
   async get(key) { /* ... */ },
   async set(key, value) { /* ... */ },
   async remove(key) { /* ... */ },
@@ -504,8 +576,8 @@ const myAdapter = {
 }
 
 const nls = await createOfflineNonLocalStorage(
-  { projectId: 'your-project-id', apiSecret: 'your-api-secret' },
-  { id: 'your-id', storage: myAdapter }
+  { projectId: 'your-project-id', apiKey: 'your-api-key', apiSecret: 'your-api-secret' },
+  { id: 'your-id', storage: MyAdapter }
 )
 
 // Now all offline reads/writes use your adapter!
@@ -544,7 +616,7 @@ const prefsEU = await createSyncObject(credentials, 'prefs-eu') // EU region
 | ------------------------------ | ------------------------- |
 | Simple, key-based storage      | `NonLocalStorage`         |
 | Real-time object sync          | `createSyncObject`        |
-| Works offline with auto-resync | `createOfflineSyncObject` |
+| Works offline with auto-resync | `createOfflineSyncObject` or `createOfflineNonLocalStorage` |
 
 ---
 
@@ -725,19 +797,6 @@ game.on('presence:leave', (conn) => {
     game.players = updatedPlayers
   }
 })
-```
-
-### Offline usage with OfflineSyncObject
-
-(Keep existing collaborative text editor and real-time gaming examples.)
-You may also add an **offline-first note-taking app** example:
-
-```ts
-interface Note { text: string; updatedAt: number }
-const notes = await createOfflineSyncObject<Record<string, Note>>(credentials, 'notes')
-
-notes['n1'] = { text: 'Buy milk', updatedAt: Date.now() } // Works offline
-// …later, once online, syncs automatically with other devices
 ```
 
 ---
