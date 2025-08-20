@@ -268,10 +268,11 @@ export default class Base {
    * @param apiKey - The API key associated with the project.
    * @param apiSecret - The API secret associated with the project.
    * @param options - Optional settings for token retrieval.
-   *   @property origin - (Optional) The browser origin to use if the API key has configured an origin restriction.
-   *     Pass this when minting a token from a backend for use in a browser.
-   *     Example: `{ origin: req.headers.origin }`
-   * @returns {Promise<string>} A promise that resolves to the access token as a string.
+   * @param options.origin - (Optional) The browser origin to use if the API key has configured an origin restriction.
+   *   Pass this when minting a token from a backend for use in a browser.
+   *   Example: `{ origin: req.headers.origin }`
+   * @returns A promise that resolves to the access token as a string.
+   *
    *
    * @example
    * ```javascript

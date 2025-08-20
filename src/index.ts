@@ -4,11 +4,26 @@
  * @packageDocumentation
  */
 
+import NonLocalStorage from './NonLocalStorage'
+
 // Also provide default exports for compatibility
-export { default as NonLocalStorage } from './NonLocalStorage'
+export { NonLocalStorage }
 export { default as createOfflineNonLocalStorage } from './OfflineNonLocalStorage'
 export { default as createSyncObject } from './SyncObject'
 export { default as createOfflineSyncObject } from './OfflineSyncObject'
+
+/**
+ * Retrieves an access token for a given project using API credentials.
+ * See {@link NonLocalStorage.retrieveAccessToken} for details.
+ */
+export function retrieveAccessToken (
+  projectId: string,
+  apiKey: string,
+  apiSecret: string,
+  options?: { origin?: string }
+): Promise<string> {
+  return NonLocalStorage.retrieveAccessToken(projectId, apiKey, apiSecret, options)
+}
 
 // Type exports
 export type * from './types'

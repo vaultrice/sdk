@@ -68,7 +68,7 @@ console.log(item?.value) // 'value'
 | TTL support                     | Auto-expiry per key or object                            |
 | Event system                    | Listen to changes, removals, messages                    |
 | SyncObject API                  | Reactive object that syncs automatically                 |
-| **Offline-first API**           | `createOfflineNonLocalStorage`, `createOfflineSyncObject`|
+| Offline-first API           | `createOfflineNonLocalStorage`, `createOfflineSyncObject`|
 | Custom storage adapters         | Use IndexedDB, SQLite, or any custom backend (default: LocalStorage)             |
 | Full TypeScript support         | Strong typings, interfaces, autocompletion               |
 | Works in browsers and Node.js   | Cross-platform by design                                 |
@@ -397,6 +397,18 @@ nls.onAccessTokenExpiring(() => {
 })
 ```
 
+### Server-side: Retrieve an access token on the backend
+
+You can securely mint access tokens on your backend using:
+
+```ts
+import { retrieveAccessToken } from '@vaultrice/sdk'
+
+const accessToken = await retrieveAccessToken('projectId', 'apiKey', 'apiSecret')
+// Optionally pass origin if the api key has origin restriction:
+// const accessToken = await retrieveAccessToken('projectId', 'apiKey', 'apiSecret', { origin: 'https://your-app.com' })
+```
+
 ---
 
 ### Choosing an approach
@@ -407,6 +419,8 @@ nls.onAccessTokenExpiring(() => {
 | Short-lived accessToken | Manual        | No                 | Environments where you avoid long-lived secrets |
 
 > **Note:** Both methods are fully supported — it’s up to you to decide which fits your architecture and security model.
+
+Read more about it [here](https://www.vaultrice.com/docs/security/#authentication-methods).
 
 
 ---
