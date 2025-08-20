@@ -117,6 +117,7 @@ export default () => {
         objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName].updatedAt = Date.now()
         send({ event: 'setItem', payload: { prop: propName, ...objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName] } })
         return {
+          value: objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName]?.value,
           expiresAt: (body as any)?.expiresAt,
           keyVersion,
           createdAt: (body as any)?.createdAt,
@@ -189,6 +190,7 @@ export default () => {
               expiresAt += 10000
             }
             r[name] = {
+              value: objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][name]?.value,
               expiresAt,
               keyVersion,
               createdAt: objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][name].createdAt || Date.now(),

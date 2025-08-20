@@ -1,10 +1,8 @@
 import WebSocketFunctions from './Ws'
 import {
   ValueType,
-  SetReturnType,
   ItemType,
   ItemsType,
-  SetItemsType,
   JSONObj,
   InstanceOptions,
   Credentials
@@ -67,7 +65,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
    *   @default false
    * @returns Metadata about the stored item.
    */
-  async setItem (name: string, value: ValueType, options?: { ttl?: number, ifAbsent?: boolean }): Promise<SetReturnType | undefined> {
+  async setItem (name: string, value: ValueType, options?: { ttl?: number, ifAbsent?: boolean }): Promise<ItemType | undefined> {
     if (!name) throw new Error('No name passed!')
     if (!value && value !== 0 && value !== '' && value !== false) throw new Error('No value passed!')
     if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
@@ -89,6 +87,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
     if (!item) return item
 
     return {
+      value: item?.value as ValueType,
       expiresAt: item?.expiresAt as number,
       keyVersion: item?.keyVersion as number ?? undefined,
       createdAt: item?.createdAt as number,
@@ -108,7 +107,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
    *   `ifAbsent` if true only set if item absent - for each item. @default false
    * @returns Metadata for each stored item.
    */
-  async setItems (items: Record<string, { value: ValueType, ttl?: number, ifAbsent?: boolean }>): Promise<SetItemsType | undefined> {
+  async setItems (items: Record<string, { value: ValueType, ttl?: number, ifAbsent?: boolean }>): Promise<ItemsType | undefined> {
     if (!items || Object.keys(items).length === 0) throw new Error('No items passed!')
     if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
 
@@ -131,8 +130,9 @@ export default class NonLocalStorage extends WebSocketFunctions {
       response = await this.request('POST', `/cache/${this.class}/${this.id}`, items)
     }
     const r = response as JSONObj
-    return Object.keys(r).reduce<SetItemsType>((prev, name) => {
+    return Object.keys(r).reduce<ItemsType>((prev, name) => {
       prev[name] = {
+        value: (r[name] as { value?: ValueType })?.value ?? null,
         expiresAt: (r[name] as { expiresAt?: number })?.expiresAt ?? 0,
         keyVersion: (r[name] as { keyVersion?: number })?.keyVersion ?? undefined,
         createdAt: (r[name] as { createdAt?: number })?.createdAt ?? 0,

@@ -59,7 +59,7 @@ describe(`NonLocalStorage (${process.env.MODE})`, () => {
 
       const setInfos = await nls.setItems({ another: { value: 'here' } })
       expect(setInfos).to.have.property('another')
-      expect(setInfos?.another).not.to.have.property('value')
+      expect(setInfos?.another).to.have.property('value', 'here')
       expect(setInfos?.another).to.have.property('expiresAt')
       expect(setInfos?.another).to.have.property('createdAt')
       expect(setInfos?.another).to.have.property('updatedAt')

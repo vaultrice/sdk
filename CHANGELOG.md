@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - not released yet
 
+## [0.9.13](https://github.com/vaultrice/sdk/compare/v0.9.12...v0.9.13) - 2025-08-20
+
+- setItem(s) now returns also the value
+
 ## [0.9.12](https://github.com/vaultrice/sdk/compare/v0.9.11...v0.9.12) - 2025-08-19
 
 - **OfflineNonLocalStorage**: New API for offline-first key-value storage with automatic sync when reconnected.

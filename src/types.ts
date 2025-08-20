@@ -10,14 +10,16 @@ export type ValueType =
   | { [key: string]: ValueType }
 
 /**
- * Metadata returned after setting a value.
+ * An item as returned from storage.
  *
  * @property expiresAt - Timestamp (ms) when the value will expire.
  * @property keyVersion - Optional version of the encryption key used.
  * @property createdAt - Timestamp (ms) when the value was created.
  * @property updatedAt - Timestamp (ms) when the value was last updated.
  */
-export type SetReturnType = {
+export type ItemType<T = ValueType> = {
+  /** value - The stored value. */
+  value: T,
   /** expiresAt - Timestamp (ms) when the value will expire. */
   expiresAt: number,
   /** keyVersion - Optional version of the encryption key used. */
@@ -29,19 +31,9 @@ export type SetReturnType = {
 }
 
 /**
- * An item as returned from storage.
- */
-export type ItemType<T = ValueType> = { value: T } & SetReturnType
-
-/**
  * Multiple items as returned from storage.
  */
 export type ItemsType = Record<string, ItemType>
-
-/**
- * Metadata for multiple set items.
- */
-export type SetItemsType = Record<string, SetReturnType>
 
 /**
  * Log levels for the SDK.
