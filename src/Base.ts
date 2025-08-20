@@ -267,26 +267,35 @@ export default class Base {
    * @param projectId - The unique identifier of the project.
    * @param apiKey - The API key associated with the project.
    * @param apiSecret - The API secret associated with the project.
+   * @param options - Optional settings for token retrieval.
+   *   @property origin - (Optional) The browser origin to use if the API key has configured an origin restriction.
+   *     Pass this when minting a token from a backend for use in a browser.
+   *     Example: `{ origin: req.headers.origin }`
    * @returns {Promise<string>} A promise that resolves to the access token as a string.
    *
    * @example
    * ```javascript
    * const token = await NonLocalStorage.retrieveAccessToken('projectId', 'apiKey', 'apiSecret');
+   * // When there is an origin restriction:
+   * const token = await NonLocalStorage.retrieveAccessToken('projectId', 'apiKey', 'apiSecret', { origin: req.headers.origin });
    * ```
    */
-  public static async retrieveAccessToken (projectId: string, apiKey: string, apiSecret: string): Promise<string> {
+  public static async retrieveAccessToken (projectId: string, apiKey: string, apiSecret: string, options?: { origin?: string }): Promise<string> {
     if (typeof projectId !== 'string' || !projectId) throw new Error('projectId not valid!')
     if (typeof apiKey !== 'string' || !apiKey) throw new Error('apiKey not valid!')
     if (typeof apiSecret !== 'string' || !apiSecret) throw new Error('apiSecret not valid!')
 
     const basicAuthHeader = `Basic ${btoa(`${apiKey}:${apiSecret}`)}`
 
+    const headers: { Authorization: string; [key: string]: string } = {
+      Authorization: basicAuthHeader
+    }
+    if (typeof options?.origin === 'string' && options?.origin.length > 0) headers.Origin = options.origin
+
     const response = await fetch(
       `${Base.basePath}/project/${projectId}/auth/token`, {
         method: 'GET',
-        headers: {
-          Authorization: basicAuthHeader
-        }
+        headers
       }
     )
 
@@ -301,6 +310,12 @@ export default class Base {
       }
     }
     if (!response.ok) {
+      if (response.status === 403 && respBody && respBody?.cause?.code === 'authorizationError.origin.server.notFound') {
+        respBody.message =
+          'Failed to retrieve access token: access denied. This is due to an API key origin restriction. ' +
+          'If minting a token from a backend for use in a browser, pass the browser-origin when calling retrieveAccessToken() ' +
+          'e.g. NonLocalStorage.retrieveAccessToken("projectId", "apiKey", "apiSecret", { origin: req.headers.origin }).'
+      }
       if (typeof respBody === 'string') throw new Error(respBody)
       if (respBody) throw respBody
       if (response.status !== 404) throw new Error(`${response.status} - ${response.statusText}`)
