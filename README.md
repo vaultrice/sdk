@@ -570,3 +570,5 @@ Have questions, ideas or feedback? [Open an issue](https://github.com/vaultrice/
 ---
 
 Made with ❤️ for developers who need real-time storage, without the backend hassle.
+
+**Try Vaultrice for [free](https://www.vaultrice.app/register)!**
