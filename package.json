@@ -34,7 +34,7 @@
     "test:integration:local": "vitest --mode integration-local",
     "test:integration:dev": "vitest --mode integration-dev",
     "docs": "typedoc",
-    "serve-docs": "http-server docs -o",
+    "serve-docs": "npm run docs && http-server docs -o",
     "preversion": "npm run test && npm run build",
     "postversion": "npm run docs && git commit -a -m 'docs update' && git push && git push --tags"
   },
