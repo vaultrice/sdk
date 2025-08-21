@@ -7,7 +7,7 @@ A secure, real-time cloud storage SDK with a familiar `localStorage`-like API �
 
 > Vaultrice is ideal for state sharing between tabs, browsers, devices, or domains — with built-in real-time updates and optional encryption... without managing custom backend WebSocket infrastructure.
 
-> **Vaultrice offers a free tier — [get started](https://www.vaultrice.app/register) without having to pay!**  
+> **Vaultrice offers a free tier — [get started](https://www.vaultrice.app/register) without having to pay!**
 
 ---
 
@@ -25,7 +25,8 @@ A secure, real-time cloud storage SDK with a familiar `localStorage`-like API �
 10. [Durable Object Location Strategy](#-durable-object-location-strategy)
 11. [Which API Should I Use?](#-which-api-should-i-use)
 12. [Real-World Examples](#-real-world-examples)
-12. [Support](#-support)
+13. [Related Packages](#-related-packages)
+14. [Support](#-support)
 
 ---
 
@@ -558,6 +559,15 @@ game.on('presence:leave', (conn) => {
   }
 })
 ```
+
+---
+
+<span id="-related-packages"></span>
+
+## 📦 Related Packages
+
+- [Vaultrice SDK for React.js](https://github.com/vaultrice/react)
+- [React.js UI-Components](https://github.com/vaultrice/react-components)
 
 ---
 
