@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - not released yet
 
+## [0.9.16](https://github.com/vaultrice/sdk/compare/v0.9.15...v0.9.16) - 2025-08-21
+
+- update dependencies
+
 ## [0.9.15](https://github.com/vaultrice/sdk/compare/v0.9.14...v0.9.15) - 2025-08-20
 
 - export retrieveAccessToken directly

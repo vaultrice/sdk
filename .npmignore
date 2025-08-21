@@ -10,3 +10,9 @@ test
 scripts
 docs
 typedoc.json
+.github
+.env
+.env.*
+eslint.config.js
+rollup.config.js
+vitest.config.js
