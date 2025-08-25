@@ -53,7 +53,7 @@ export default async function createSyncObject<T extends object> (
   // Wait for WebSocket connection to be established before proceeding
   const connectedPromise = new Promise<void>((resolve, reject) => {
     // Get the WebSocket to trigger connection
-    nls.getWebSocket().then((ws) => {
+    nls.getWebSocket(false).then((ws) => {
       // Check if already connected
       if (ws.readyState === WebSocket.OPEN) {
         resolve()

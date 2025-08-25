@@ -42,6 +42,12 @@ export function setRemoteState (projectId, className, objectId, data) {
 export default () => {
   const mock = vi.spyOn(Base.prototype, 'request').mockImplementation(
     async function (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {
+      try {
+        await this.throttleManager.throttleOperation()
+      } catch (error: any) {
+        this.logger.log('error', `Request throttled: ${error?.message}`)
+        throw error
+      }
       await setImmediate()
       const keyVersion = this[ENCRYPTION_SETTINGS]?.keyVersion
       const pathParts = path.split('/')

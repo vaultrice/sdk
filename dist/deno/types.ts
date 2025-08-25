@@ -229,7 +229,9 @@ export type InstanceOptions = {
      * If a pong response is not received within this timeout after a ping, the connection will be considered lost and closed.
      */
     pongTimeout?: number
-  }
+  },
+  /** Throttling configuration */
+  throttling?: ThrottleConfig
 }
 
 /**
@@ -519,3 +521,29 @@ export interface OfflineSyncOptions extends InstanceOptions {
 }
 
 export type OfflineSyncOptionsExtra = Omit<OfflineSyncOptions, keyof InstanceOptions>
+
+/**
+ * Configuration options for throttling
+ */
+export interface ThrottleConfig {
+  /**
+   * Enable/disable throttling entirely
+   * @default true
+   */
+  enabled?: boolean
+  /**
+   * Maximum number of operations per window
+   * @default 100
+   */
+  maxOperations?: number
+  /**
+   * Time window in milliseconds
+   * @default 60000
+   */
+  windowMs?: number
+  /**
+   * Delay between operations in milliseconds (0 = no delay)
+   * @default 0
+   */
+  operationDelay?: number
+}

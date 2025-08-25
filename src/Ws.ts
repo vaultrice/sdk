@@ -181,6 +181,12 @@ export default class WebSocketFunctions extends Base {
     }
 
     const ws = await this.getWebSocket()
+    try {
+      await this.throttleManager.throttleOperation()
+    } catch (error: any) {
+      this.logger.log('error', `WebSocket message throttled: ${error?.message}`)
+      throw error
+    }
     const wrappedMsg = { event: 'message', payload: msgToSend }
     if (this[ENCRYPTION_SETTINGS] && this[ENCRYPTION_SETTINGS]?.keyVersion > -1) (wrappedMsg as any).keyVersion = this[ENCRYPTION_SETTINGS]?.keyVersion
     // coming on ws:// connection via protocols
@@ -287,7 +293,7 @@ export default class WebSocketFunctions extends Base {
     handlerOrName: ((item: ItemType & { prop: string }) => void) | ((name: string) => void) | (() => void) | ((error: Error) => void) | ((data: JSONObj) => void) | ((joinedConnection: JoinedConnection) => void) | ((leavedConnection: LeavedConnection) => void) | string,
     handler?: ((item: ItemType & { prop: string }) => void) | (() => void) | ((name: string) => void) | ((error: Error) => void) | ((data: JSONObj) => void)
   ) {
-    this.getWebSocket().then((ws) => {
+    this.getWebSocket(false).then((ws) => {
       // Initialize event set if it doesn't exist
       if (!this[EVENT_HANDLERS].has(event)) this[EVENT_HANDLERS].set(event, new Set())
       const eventSet = this[EVENT_HANDLERS].get(event)!
@@ -647,13 +653,25 @@ export default class WebSocketFunctions extends Base {
   /**
    * Get or create the WebSocket connection.
    * @internal
-   * @returns {Promise<WebSocket>} The active WebSocket instance.
+   * @param waitForOpen - If `true` (default), returns a Promise that resolves only when the WebSocket connection is fully open.
+   *                      If `false`, returns the WebSocket instance immediately (may not be open yet).
+   * @returns {Promise<WebSocket>} The active WebSocket instance, or a Promise resolving to it when open.
    *
    * @remarks
-   * Creates a new connection if one doesn't exist. Handles authentication
-   * via query parameters and sets up automatic cleanup on close.
+   * - If a connection does not exist, a new one is created.
+   * - Handles authentication via query parameters and sets up automatic cleanup on close.
+   * - Use `waitForOpen = true` if you need to ensure the connection is established before proceeding.
+   *
+   * @example
+   * ```typescript
+   * // Returns immediately (WebSocket may not be open yet)
+   * const ws = await instance.getWebSocket(false);
+   *
+   * // Waits for the connection to be open before resolving
+   * const ws = await instance.getWebSocket(true);
+   * ```
    */
-  async getWebSocket (): Promise<WebSocket> {
+  async getWebSocket (waitForOpen: boolean = true): Promise<WebSocket> {
     if (!this[CREDENTIALS].accessToken && this.isGettingAccessToken) await this.isGettingAccessToken
 
     if (this[WEBSOCKET]) return this[WEBSOCKET]
@@ -733,6 +751,10 @@ export default class WebSocketFunctions extends Base {
     // Attach control handler BEFORE other message listeners so it can process pongs and handshake first:
     ws.addEventListener('message', controlMessageHandler)
 
+    let resolveConnect: Function
+    const openProm = new Promise<WebSocket>((resolve) => {
+      resolveConnect = resolve
+    })
     // When socket opens: send resume if we have a saved connectionId, start heartbeat
     ws.addEventListener('open', () => {
       this.isConnected = true
@@ -743,6 +765,7 @@ export default class WebSocketFunctions extends Base {
       }
       // start the heartbeat
       this.startHeartbeat()
+      if (typeof resolveConnect === 'function') resolveConnect(ws)
     }, { once: true })
 
     // When socket closes: stop heartbeat and keep your existing reconnect behavior
@@ -798,7 +821,7 @@ export default class WebSocketFunctions extends Base {
             let ws: WebSocket | undefined
             try {
               delete this[WEBSOCKET]
-              ws = await this.getWebSocket()
+              ws = await this.getWebSocket(false)
             } catch (e: any) {
               this.logger.log('error', e?.message || e?.name || e?.type || e)
               tryReconnect()
@@ -945,6 +968,7 @@ export default class WebSocketFunctions extends Base {
         tryReconnect()
       }
     })
+    if (waitForOpen) return openProm
     return ws
   }
 
@@ -1047,9 +1071,17 @@ export default class WebSocketFunctions extends Base {
    * ```
    */
   async join (data: JSONObj): Promise<undefined> {
+    if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
+
+    try {
+      await this.throttleManager.throttleOperation()
+    } catch (error: any) {
+      this.logger.log('error', `Request throttled: ${error?.message}`)
+      throw error
+    }
+
     this.hasJoined = true
     this.lastJoinData = data
-    if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
 
     const dataToSend = this.encryptionHandler ? await this.encryptionHandler.encrypt(JSON.stringify(data)) : data
 
@@ -1069,6 +1101,14 @@ export default class WebSocketFunctions extends Base {
    */
   async leave (): Promise<undefined> {
     if (!this.hasJoined) return
+
+    try {
+      await this.throttleManager.throttleOperation()
+    } catch (error: any) {
+      this.logger.log('error', `Request throttled: ${error?.message}`)
+      throw error
+    }
+
     this.hasJoined = false
 
     const ws = await this.getWebSocket()

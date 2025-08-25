@@ -9,26 +9,27 @@ A secure, real-time cloud storage SDK with a familiar `localStorage`-like API �
 
 > **Vaultrice offers a free tier — [get started](https://www.vaultrice.app/register) without having to pay!**
 
----
+-----
 
 ## Table of contents
 
-1. [Install](#-installation)
-2. [Quick start](#-quick-start)
-3. [Feature overview](#-feature-overview)
-4. [Authentication](#-authentication)
-5. [API overview](#-api-overview)
-6. [Presence & messaging](#-presence--messaging)
-7. [End-to-end encryption (E2EE)](#-end-to-end-encryption-e2ee)
-8. [SyncObject (reactive object)](#-syncobject-reactive-object)
-9. [Offline-first APIs](#-offline-first-apis)
-10. [Durable Object Location Strategy](#-durable-object-location-strategy)
-11. [Which API Should I Use?](#-which-api-should-i-use)
-12. [Real-World Examples](#-real-world-examples)
-13. [Related Packages](#-related-packages)
-14. [Support](#-support)
+1.  [Install](#-installation)
+2.  [Quick start](#-quick-start)
+3.  [Feature overview](#-feature-overview)
+4.  [Authentication](#-authentication)
+5.  [API overview](#-api-overview)
+6.  [Presence & messaging](#-presence--messaging)
+7.  [End-to-end encryption (E2EE)](#-end-to-end-encryption-e2ee)
+8.  [Rate Limiting & Throttling](#-rate-limiting--throttling)
+9.  [SyncObject (reactive object)](#-syncobject-reactive-object)
+10. [Offline-first APIs](#-offline-first-apis)
+11. [Durable Object Location Strategy](#-durable-object-location-strategy)
+12. [Which API Should I Use?](#-which-api-should-i-use)
+13. [Real-World Examples](#-real-world-examples)
+14. [Related Packages](#-related-packages)
+15. [Support](#-support)
 
----
+-----
 
 <span id="-installation"></span>
 
@@ -40,7 +41,7 @@ npm install @vaultrice/sdk
 yarn add @vaultrice/sdk
 ```
 
----
+-----
 
 <span id="-quick-start"></span>
 
@@ -60,27 +61,28 @@ const item = await nls.getItem('key')
 console.log(item?.value) // 'value'
 ```
 
----
+-----
 
 <span id="-feature-overview"></span>
 
 ## 📋 Feature Overview
 
-| Feature                         | Description                                              |
-| ------------------------------- | -------------------------------------------------------- |
-| `localStorage`-like API         | Familiar `setItem`, `getItem`, `removeItem`, etc.        |
-| Cross-tab/browser/device/domain | Seamless state sharing across environments               |
-| Real-time sync                  | WebSocket-based updates, instant across clients          |
-| Optional end-to-end encryption  | Data encrypted client-side, never readable on the server |
-| TTL support                     | Auto-expiry per key or object                            |
-| Event system                    | Listen to changes, removals, messages                    |
-| SyncObject API                  | Reactive object that syncs automatically                 |
-| Offline-first API           | `createOfflineNonLocalStorage`, `createOfflineSyncObject`|
-| Custom storage adapters         | Use IndexedDB, SQLite, or any custom backend (default: LocalStorage)             |
-| Full TypeScript support         | Strong typings, interfaces, autocompletion               |
-| Works in browsers and Node.js   | Cross-platform by design                                 |
+| Feature | Description |
+| --- | --- |
+| `localStorage`-like API | Familiar `setItem`, `getItem`, `removeItem`, etc. |
+| Cross-tab/browser/device/domain | Seamless state sharing across environments |
+| Real-time sync | WebSocket-based updates, instant across clients |
+| Optional end-to-end encryption | Data encrypted client-side, never readable on the server |
+| **Client-Side Throttling** | **Built-in rate limiting to prevent accidental abuse** |
+| TTL support | Auto-expiry per key or object |
+| Event system | Listen to changes, removals, messages |
+| SyncObject API | Reactive object that syncs automatically |
+| Offline-first API | `createOfflineNonLocalStorage`, `createOfflineSyncObject`|
+| Custom storage adapters | Use IndexedDB, SQLite, or any custom backend (default: LocalStorage) |
+| Full TypeScript support | Strong typings, interfaces, autocompletion |
+| Works in browsers and Node.js | Cross-platform by design |
 
----
+-----
 
 <span id="-authentication"></span>
 
@@ -88,20 +90,15 @@ console.log(item?.value) // 'value'
 
 The SDK supports **three** authentication approaches — choose based on your threat model and architecture:
 
-1. **apiKey + apiSecret** (SDK automatically fetches and refreshes short-lived `accessToken`)
-
-   * Easiest to use for quick builds and server-side code.
-   * If used in clients, combine with origin restrictions or a proxy.
-
-2. **accessToken** (short-lived token, e.g. \~1 hour) — manual refresh
-
-   * Your backend issues a token and the client receives it.
-   * You are responsible for refreshing the token before expiry.
-
-3. **getAccessToken** (async function that returns a token) — recommended for production
-
-   * The SDK calls the function when it needs a token or when a token is close to expiry.
-   * You can optionally provide an initial `accessToken` together with `getAccessToken` for immediate use (the SDK will validate & auto-refresh as needed).
+1.  **apiKey + apiSecret** (SDK automatically fetches and refreshes short-lived `accessToken`)
+      * Easiest to use for quick builds and server-side code.
+      * If used in clients, combine with origin restrictions or a proxy.
+2.  **accessToken** (short-lived token, e.g. \~1 hour) — manual refresh
+      * Your backend issues a token and the client receives it.
+      * You are responsible for refreshing the token before expiry.
+3.  **getAccessToken** (async function that returns a token) — recommended for production
+      * The SDK calls the function when it needs a token or when a token is close to expiry.
+      * You can optionally provide an initial `accessToken` together with `getAccessToken` for immediate use (the SDK will validate & auto-refresh as needed).
 
 ### Example: token-provider (recommended)
 
@@ -141,19 +138,20 @@ const accessToken = await retrieveAccessToken('projectId', 'apiKey', 'apiSecret'
 // const accessToken = await retrieveAccessToken('projectId', 'apiKey', 'apiSecret', { origin: 'https://your-app.com' })
 ```
 
----
+-----
 
 ### Choosing an approach
 
-| Option                  | Token refresh | Secrets in client? | Example uses                                    |
-| ----------------------- | ------------- | ------------------ | ----------------------------------------------- |
-| apiKey + apiSecret      | Auto          | Yes (if in client) | Quick setup, automatic renewal, flexible        |
-| Short-lived accessToken | Manual        | No                 | Environments where you avoid long-lived secrets |
+| Option | Token refresh | Secrets in client? | Example uses |
+| --- | --- | --- | --- |
+| apiKey + apiSecret | Auto | Yes (if in client) | Quick setup, automatic renewal, flexible |
+| Short-lived accessToken | Manual | No | Environments where you avoid long-lived secrets |
 
 > **Note:** Both methods are fully supported — it’s up to you to decide which fits your architecture and security model.
 
 Read more about it [here](https://www.vaultrice.com/docs/security/#authentication-methods).
 
+-----
 
 ---
 
@@ -218,7 +216,7 @@ nls.on('presence:leave', c => {})                // listen for leaves
 
 Messages sent through `nls.send` with `transport: 'ws'` are broadcast to other connected clients (not echoed to sender). `transport: 'http'` reaches all clients including sender.
 
----
+-----
 
 <span id="-end-to-end-encryption-e2ee"></span>
 
@@ -236,10 +234,45 @@ await nls.getEncryptionSettings()   // fetch salt + key version
 await nls.setItem('secret', 'value') // automatically encrypted when needed
 ```
 
-* The SDK supports key versioning and lazy decryption of previous keys.
-* Use `rotateEncryption()` to create a new key version.
+  * The SDK supports key versioning and lazy decryption of previous keys.
+  * Use `rotateEncryption()` to create a new key version.
 
----
+-----
+
+<span id="-rate-limiting--throttling"></span>
+
+## ⚡ Rate Limiting & Throttling
+
+To ensure stability and prevent accidental abuse, the Vaultrice SDK includes a built-in, configurable client-side throttle manager for all operations (both HTTP requests and WebSocket messages).
+
+By default, the SDK limits operations to **100 per minute**. This is designed to be permissive enough for almost all use cases while protecting your application and the backend service.
+
+### Custom Configuration
+
+You can customize or disable throttling via the `throttling` option during initialization.
+
+```ts
+import { NonLocalStorage } from '@vaultrice/sdk'
+
+const nls = new NonLocalStorage(credentials, {
+  id: 'my-object-id',
+  throttling: {
+    enabled: true,          // Enable or disable throttling
+    maxOperations: 200,     // Max operations per window
+    windowMs: 30 * 1000,    // Time window in milliseconds (30 seconds)
+    operationDelay: 50      // Add a 50ms delay between each operation
+  }
+})
+```
+
+| Option | Description | Default |
+| :--- | :--- | :--- |
+| `enabled` | A boolean to enable or disable the throttle. | `true` |
+| `maxOperations` | The maximum number of operations allowed within the `windowMs`. | `100` |
+| `windowMs` | The time window in milliseconds to track operations. | `60000` |
+| `operationDelay`| An artificial delay (in ms) to enforce between consecutive operations. | `0` |
+
+-----
 
 <span id="-syncobject-reactive-object"></span>
 
@@ -258,7 +291,7 @@ await doc.join({ name: 'Bob' }) // presence
 await doc.send({ type: 'cursor', x: 10 })
 ```
 
----
+-----
 
 <span id="-offline-first-apis"></span>
 
@@ -283,10 +316,10 @@ const item = await nls.getItem('key')
 console.log(item.value) // 'value'
 ```
 
-- **Local-first:** Reads/writes use local storage when offline.
-- **Automatic sync:** Queues changes and syncs with the server when online.
-- **Conflict resolution:** Last-write-wins by default, customizable.
-- **Custom storage adapters:** Use your own storage backend (IndexedDB, SQLite, etc).
+  * **Local-first:** Reads/writes use local storage when offline.
+  * **Automatic sync:** Queues changes and syncs with the server when online.
+  * **Conflict resolution:** Last-write-wins by default, customizable.
+  * **Custom storage adapters:** Use your own storage backend (IndexedDB, SQLite, etc).
 
 ### OfflineSyncObject
 
@@ -304,14 +337,12 @@ obj.foo = 'bar' // Updates locally and syncs when online
 console.log(obj.foo) // 'bar'
 ```
 
-- **Proxy-based:** Use like a normal JS object.
-- **Events:** Listen for changes, removals, presence, and messages.
-- **Presence:** Track who’s online, join/leave notifications.
-- **Works offline:** Changes are queued and synchronized automatically.
-
+  * **Proxy-based:** Use like a normal JS object.
+  * **Events:** Listen for changes, removals, presence, and messages.
+  * **Presence:** Track who’s online, join/leave notifications.
+  * **Works offline:** Changes are queued and synchronized automatically.
 
 This makes it safe on mobile, airplane mode, or unstable networks.
-
 
 ### 🛠️ Custom Storage Adapter
 
@@ -339,16 +370,17 @@ const nls = await createOfflineNonLocalStorage(
 await nls.setItem('foo', 'bar')
 ```
 
-**Requirements:**  
-Your adapter should implement these async methods:  
-- `get(key): Promise<any>`
-- `set(key, value): Promise<void>`
-- `remove(key): Promise<void>`
-- `getAll(): Promise<Record<string, any>>`
+**Requirements:**
+Your adapter should implement these async methods:
+
+  - `get(key): Promise<any>`
+  - `set(key, value): Promise<void>`
+  - `remove(key): Promise<void>`
+  - `getAll(): Promise<Record<string, any>>`
 
 This works for both `createOfflineNonLocalStorage` and
 
----
+-----
 
 <span id="-durable-object-location-strategy"></span>
 
@@ -356,28 +388,30 @@ This works for both `createOfflineNonLocalStorage` and
 
 Vaultrice uses Cloudflare Durable Objects. The **first successful request** for an ID fixes its "home" region:
 
-* All subsequent writes for that ID go to that region.
-* Useful for data residency & latency considerations.
-* To enforce regions, initialize from the right region first:
+  * All subsequent writes for that ID go to that region.
+  * Useful for data residency & latency considerations.
+  * To enforce regions, initialize from the right region first:
+
+<!-- end list -->
 
 ```ts
 const prefsUS = await createSyncObject(credentials, 'prefs-us') // US region
 const prefsEU = await createSyncObject(credentials, 'prefs-eu') // EU region
 ```
 
----
+-----
 
 <span id="-which-api-should-i-use"></span>
 
 ## 📦 Which API Should I Use?
 
-| Use Case                       | Recommended API           |
-| ------------------------------ | ------------------------- |
-| Simple, key-based storage      | `NonLocalStorage`         |
-| Real-time object sync          | `createSyncObject`        |
+| Use Case | Recommended API |
+| --- | --- |
+| Simple, key-based storage | `NonLocalStorage` |
+| Real-time object sync | `createSyncObject` |
 | Works offline with auto-resync | `createOfflineSyncObject` or `createOfflineNonLocalStorage` |
 
----
+-----
 
 <span id="-real-world-examples"></span>
 
@@ -560,16 +594,16 @@ game.on('presence:leave', (conn) => {
 })
 ```
 
----
+-----
 
 <span id="-related-packages"></span>
 
 ## 📦 Related Packages
 
-- [Vaultrice SDK for React.js](https://github.com/vaultrice/react)
-- [React.js UI-Components](https://github.com/vaultrice/react-components)
+  - [Vaultrice SDK for React.js](https://github.com/vaultrice/react)
+  - [React.js UI-Components](https://github.com/vaultrice/react-components)
 
----
+-----
 
 <span id="-support"></span>
 
@@ -577,7 +611,7 @@ game.on('presence:leave', (conn) => {
 
 Have questions, ideas or feedback? [Open an issue](https://github.com/vaultrice/sdk) or email us at [support@vaultrice.com](mailto:support@vaultrice.com)
 
----
+-----
 
 Made with ❤️ for developers who need real-time storage, without the backend hassle.
 

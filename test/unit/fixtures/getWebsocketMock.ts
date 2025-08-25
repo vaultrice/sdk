@@ -176,7 +176,7 @@ export default () => {
   }
 
   const mock = vi.spyOn(NonLocalStorage.prototype, 'getWebSocket').mockImplementation(
-    async function (): Promise<WebSocket> {
+    async function (waitForOpen: boolean = true): Promise<WebSocket> {
       const roomKey = `${this[CREDENTIALS].projectId}:${this.class}`
       const apiKey = this[CREDENTIALS].apiKey
 
@@ -184,13 +184,32 @@ export default () => {
       ws[roomKey][this.id] ||= {}
 
       // Use apiKey to separate different clients connecting to the same room
-      if (ws[roomKey][this.id][apiKey]) return ws[roomKey][this.id][apiKey]
+      if (ws[roomKey][this.id][apiKey]) {
+        if (waitForOpen) {
+          // If already open, resolve immediately, else wait for open event
+          if (ws[roomKey][this.id][apiKey].readyState === WebSocket.OPEN) {
+            return ws[roomKey][this.id][apiKey]
+          }
+          return new Promise<WebSocket>((resolve) => {
+            ws[roomKey][this.id][apiKey].addEventListener('open', () => {
+              this.isConnected = true
+              resolve(ws[roomKey][this.id][apiKey])
+            }, { once: true })
+          })
+        }
+        return ws[roomKey][this.id][apiKey]
+      }
 
       ws[roomKey][this.id][apiKey] = new WebSocket('ws://localhost:1234')
       this[WEBSOCKET] = ws[roomKey][this.id][apiKey]
 
+      let resolveConnect: Function
+      const openProm = new Promise<WebSocket>((resolve) => {
+        resolveConnect = resolve
+      })
       this[WEBSOCKET].addEventListener('open', () => {
         this.isConnected = true
+        if (typeof resolveConnect === 'function') resolveConnect(ws[roomKey][this.id][apiKey])
       }, { once: true })
       this[WEBSOCKET].addEventListener('close', () => {
         this.isConnected = false
@@ -203,7 +222,7 @@ export default () => {
       conns[roomKey][this.id].push({ connectionId })
       ws[roomKey][this.id][apiKey].connectionId = connectionId
 
-      return ws[roomKey][this.id][apiKey]
+      return waitForOpen ? openProm : ws[roomKey][this.id][apiKey]
     }
   )
 

@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - not released yet
 
+## [0.9.17](https://github.com/vaultrice/sdk/compare/v0.9.16...v0.9.17) - 2025-08-25
+
+- intruduce "Rate Limiting & Throttling"
+
 ## [0.9.16](https://github.com/vaultrice/sdk/compare/v0.9.15...v0.9.16) - 2025-08-21
 
 - update dependencies

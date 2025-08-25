@@ -5,6 +5,7 @@ import { JSONObj, InstanceOptions, KeyDerivationOptions, EncryptionSettingsInfos
 import getLogger, { Logger } from './logger.ts'
 import decodeJwt from './decodeJwt.ts'
 import { CREDENTIALS, ENCRYPTION_SETTINGS, PREVIOUS_ENCRYPTION_SETTINGS, ACCESS_TOKEN_EXPIRING_HANDLERS } from './symbols.ts'
+import ThrottleManager from './ThrottleManager.ts'
 
 /**
  * Generate a unique ID for an instance.
@@ -93,6 +94,9 @@ export default class Base {
   /** @internal Promise for token acquisition */
   protected isGettingAccessToken?: Promise<void>
 
+  /** @internal Throttle manager for rate limiting requests */
+  protected readonly throttleManager: ThrottleManager
+
   /** @internal API credentials */
   private [CREDENTIALS]: Credentials
 
@@ -176,6 +180,8 @@ export default class Base {
         throw new Error('Invalid credentials! Both apiKey and apiSecret are required when using direct authentication')
       }
     }
+
+    this.throttleManager = new ThrottleManager(options.throttling)
 
     if (typeof idOrOptions !== 'string' && !idOrOptions?.id) {
       // try to save that id locally
@@ -557,6 +563,12 @@ export default class Base {
    */
   async request (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {
     if (!this[CREDENTIALS].accessToken && this.isGettingAccessToken) await this.isGettingAccessToken
+    try {
+      await this.throttleManager.throttleOperation()
+    } catch (error: any) {
+      this.logger.log('error', `Request throttled: ${error?.message}`)
+      throw error
+    }
 
     const basicAuthHeader = (this[CREDENTIALS].apiKey && this[CREDENTIALS].apiSecret) ? `Basic ${btoa(`${this[CREDENTIALS].apiKey}:${this[CREDENTIALS].apiSecret}`)}` : undefined
     const bearerAuthHeader = this[CREDENTIALS].accessToken ? `Bearer ${this[CREDENTIALS].accessToken}` : undefined

@@ -411,8 +411,8 @@ describe('NonLocalStorage', () => {
   // add to your existing describe('NonLocalStorage', ...) block (or a new block)
   describe('hibernation / heartbeat / resume behaviors', () => {
     it('responds to ping with pong (only to sender)', async () => {
+      ;(NonLocalStorage as any).getWebSocketServer()
       const nls = new NonLocalStorage({ apiKey: uuidv4(), apiSecret: 'dummy', projectId: uuidv4() })
-
       // ensure connected
       await new Promise<void>((resolve) => nls.on('connect', () => resolve()))
 
