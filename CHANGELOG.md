@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - not released yet
 
+## [0.9.18](https://github.com/vaultrice/sdk/compare/v0.9.17...v0.9.18) - 2025-08-27
+
+- internally disconnect from WS if there are no more bound event handlers
+
 ## [0.9.17](https://github.com/vaultrice/sdk/compare/v0.9.16...v0.9.17) - 2025-08-25
 
 - intruduce "Rate Limiting & Throttling"

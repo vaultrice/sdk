@@ -31,6 +31,15 @@ export default class WebSocketFunctions extends Base {
   * Whether automatic reconnection is enabled for the WebSocket.
   * If true, the client will attempt to reconnect on unexpected disconnects.
   * Controlled via InstanceOptions.connectionSettings.autoReconnect.
+  * This is the original configuration option coming via InstanceOptions.connectionSettings.autoReconnect.
+  */
+  private configuredAutoReconnect: boolean
+
+  /**
+  * Whether automatic reconnection is enabled for the WebSocket.
+  * If true, the client will attempt to reconnect on unexpected disconnects.
+  * Controlled via InstanceOptions.connectionSettings.autoReconnect.
+  * Will also be manipulated during runtime...
   */
   private autoReconnect: boolean
 
@@ -130,7 +139,8 @@ export default class WebSocketFunctions extends Base {
     this[EVENT_HANDLERS] = new Map()
 
     const opts = typeof idOrOptions === 'object' ? idOrOptions : {}
-    this.autoReconnect = opts.connectionSettings?.autoReconnect ?? true
+    this.configuredAutoReconnect = opts.connectionSettings?.autoReconnect ?? true
+    this.autoReconnect = this.configuredAutoReconnect
     this.reconnectBaseDelay = opts.connectionSettings?.reconnectBaseDelay ?? 1000
     this.reconnectMaxDelay = opts.connectionSettings?.reconnectMaxDelay ?? 30000
     this.pingInterval = opts.connectionSettings?.pingInterval ?? 20000
@@ -615,6 +625,10 @@ export default class WebSocketFunctions extends Base {
     if (eventSet.size === 0) {
       this[EVENT_HANDLERS].delete(event)
     }
+
+    if (this[EVENT_HANDLERS].size === 0 && this[ERROR_HANDLERS].length === 0) {
+      this.disconnect()
+    }
   }
 
   /**
@@ -675,6 +689,8 @@ export default class WebSocketFunctions extends Base {
     if (!this[CREDENTIALS].accessToken && this.isGettingAccessToken) await this.isGettingAccessToken
 
     if (this[WEBSOCKET]) return this[WEBSOCKET]
+
+    this.autoReconnect = this.configuredAutoReconnect
 
     const wsBasePath = WebSocketFunctions.basePath.replace('http', 'ws')
 
