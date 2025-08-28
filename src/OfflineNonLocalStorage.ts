@@ -340,6 +340,7 @@ export default async function createOfflineNonLocalStorage (
         }
       }
       // Offline: queue for later sync
+      isOnline = false
       outbox.push({ op: 'set', prop: key, value: meta })
       await safeStorageSet(storage, '_outbox', outbox)
       fireLocalEvent('setItem', { prop: key, ...meta })
@@ -351,7 +352,7 @@ export default async function createOfflineNonLocalStorage (
       await safeStorageRemove(storage, key)
       if (isOnline && nls) {
         try {
-          return nls.removeItem(key)
+          return await nls.removeItem(key)
           // Do NOT fireLocalEvent here; remote listener will handle it
         } catch (err: any) {
           if (!isConnectionError(err)) throw err
@@ -362,6 +363,7 @@ export default async function createOfflineNonLocalStorage (
       }
 
       // Offline: queue for later sync
+      isOnline = false
       outbox.push({ op: 'remove', prop: key })
       await safeStorageSet(storage, '_outbox', outbox)
       fireLocalEvent('removeItem', { prop: key })
@@ -393,6 +395,8 @@ export default async function createOfflineNonLocalStorage (
         }
       }
 
+      // is offline
+      isOnline = false
       const meta = store[key]
       if (!meta || isExpired(meta)) return undefined
       return meta
@@ -436,6 +440,7 @@ export default async function createOfflineNonLocalStorage (
       }
 
       // Offline: queue for later sync
+      isOnline = false
       const items: any = {}
       for (const k of Object.keys(store)) {
         if (options?.prefix && !k.startsWith(options.prefix)) continue
@@ -470,7 +475,9 @@ export default async function createOfflineNonLocalStorage (
           setTimeout(tryReconnect, delay)
         }
       }
+
       // Offline: set each item individually
+      isOnline = false
       const result: any = {}
       for (const k of Object.keys(items)) {
         result[k] = await wrapper.setItem(k, items[k].value, { ttl: items[k].ttl, ifAbsent: items[k].ifAbsent })
@@ -504,7 +511,9 @@ export default async function createOfflineNonLocalStorage (
           setTimeout(tryReconnect, delay)
         }
       }
+
       // Offline: return local items
+      isOnline = false
       const result: any = {}
       for (const k of keys) {
         const meta = store[k]
@@ -516,7 +525,7 @@ export default async function createOfflineNonLocalStorage (
     async getAllKeys (options?: { prefix?: string }) {
       if (isOnline && nls) {
         try {
-          return nls.getAllKeys(options)
+          return await nls.getAllKeys(options)
         } catch (err: any) {
           if (!isConnectionError(err)) throw err
           isOnline = false
@@ -524,7 +533,9 @@ export default async function createOfflineNonLocalStorage (
           setTimeout(tryReconnect, delay)
         }
       }
+
       // Offline: filter local keys
+      isOnline = false
       return Object.keys(store).filter(k => !isExpired(store[k]) && (!options?.prefix || k.startsWith(options.prefix)))
     },
 
@@ -536,7 +547,7 @@ export default async function createOfflineNonLocalStorage (
 
       if (isOnline && nls) {
         try {
-          return nls.removeItems(keys)
+          return await nls.removeItems(keys)
         } catch (err: any) {
           if (!isConnectionError(err)) throw err
           isOnline = false
@@ -544,7 +555,9 @@ export default async function createOfflineNonLocalStorage (
           setTimeout(tryReconnect, delay)
         }
       }
+
       // Offline: remove each item individually
+      isOnline = false
       for (const k of keys) {
         await wrapper.removeItem(k)
       }
@@ -558,7 +571,7 @@ export default async function createOfflineNonLocalStorage (
       }
       if (isOnline && nls) {
         try {
-          return nls.clear()
+          return await nls.clear()
         } catch (err: any) {
           if (!isConnectionError(err)) throw err
           isOnline = false
@@ -566,7 +579,9 @@ export default async function createOfflineNonLocalStorage (
           setTimeout(tryReconnect, delay)
         }
       }
+
       // Offline: remove all local items
+      isOnline = false
       for (const k of keys) {
         await wrapper.removeItem(k)
       }
@@ -589,7 +604,9 @@ export default async function createOfflineNonLocalStorage (
           setTimeout(tryReconnect, delay)
         }
       }
+
       // Offline: emulate increment locally
+      isOnline = false
       const meta = store[key]
       let newValue = value
       if (meta && !isExpired(meta) && typeof meta.value === 'number') {
@@ -615,7 +632,9 @@ export default async function createOfflineNonLocalStorage (
           setTimeout(tryReconnect, delay)
         }
       }
+
       // Offline: emulate decrement locally
+      isOnline = false
       const meta = store[key]
       let newValue = -value
       if (meta && !isExpired(meta) && typeof meta.value === 'number') {
@@ -667,22 +686,28 @@ export default async function createOfflineNonLocalStorage (
 
     async send (msg: any, options: { transport?: 'ws' | 'http' } = { transport: 'ws' }) {
       if (isOnline && nls && typeof nls.send === 'function') {
-        return nls.send(msg, options)
+        return await nls.send(msg, options)
       }
+
+      isOnline = false
       throw new Error('Vaultrice: .send() is not available while offline. It will be available upon reconnection.')
     },
 
     async join (data: any) {
       if (isOnline && nls && typeof nls.join === 'function') {
-        return nls.join(data)
+        return await nls.join(data)
       }
+
+      isOnline = false
       throw new Error('Vaultrice: .join() is not available while offline. It will be available upon reconnection.')
     },
 
     async leave () {
       if (isOnline && nls && typeof nls.leave === 'function') {
-        return nls.leave()
+        return await nls.leave()
       }
+
+      isOnline = false
       throw new Error('Vaultrice: .leave() is not available while offline. It will be available upon reconnection.')
     },
 
@@ -692,7 +717,9 @@ export default async function createOfflineNonLocalStorage (
         lastJoinedConnections = result
         return result
       }
+
       // Offline: return last known result
+      isOnline = false
       return lastJoinedConnections
     },
 

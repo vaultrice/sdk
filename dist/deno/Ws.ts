@@ -70,6 +70,8 @@ export default class WebSocketFunctions extends Base {
   /**
   * Indicates if the WebSocket connection is currently established.
   * True if connected, false otherwise.
+  * Only relevant/appropriate if having some listeners attached (i.e. nls.on('message'))
+  * If not using any WebSocket feature, it will always return false.
   */
   public isConnected: boolean = false
 

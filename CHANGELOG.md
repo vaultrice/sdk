@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - not released yet
 
+## [0.9.20](https://github.com/vaultrice/sdk/compare/v0.9.19...v0.9.20) - 2025-08-28
+
+- improve OfflineNonLocalStorage
+
 ## [0.9.19](https://github.com/vaultrice/sdk/compare/v0.9.18...v0.9.19) - 2025-08-28
 
 - internally handle retrieable requests
