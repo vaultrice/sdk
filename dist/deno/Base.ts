@@ -268,6 +268,98 @@ export default class Base {
   }
 
   /**
+   * @internal
+   */
+  private static async executeWithRetry<T>(
+    operation: () => Promise<T>,
+    operationName: string,
+    logger?: Logger,
+    options: {
+      maxRetries?: number;
+      initialDelay?: number;
+      maxDelay?: number;
+      backoffMultiplier?: number;
+    } = {}
+  ): Promise<T> {
+    const {
+      maxRetries = 3,
+      initialDelay = 100,
+      maxDelay = 2000,
+      backoffMultiplier = 2
+    } = options
+
+    let lastError: any
+    let attempt = 0
+
+    while (attempt <= maxRetries) {
+      try {
+        return await operation()
+      } catch (error: any) {
+        lastError = error
+
+        let shouldRetry = false
+        let errorMessage = ''
+
+        const retryPatterns = [
+          'Please try again in a moment',
+          'Please retry',
+          'Service temporarily unavailable',
+          'temporarily unavailable',
+          'try again later'
+        ]
+
+        // Handle different error types
+        if (error && typeof error === 'object') {
+          errorMessage = error.message || error.toString()
+          const code = error?.cause?.code
+
+          if (code && code.indexOf('retry') > -1) {
+            shouldRetry = true
+          } else if (errorMessage) {
+            shouldRetry = retryPatterns.some(pattern =>
+              errorMessage.toLowerCase().includes(pattern.toLowerCase())
+            )
+          }
+        } else if (typeof error === 'string') {
+          errorMessage = error
+          shouldRetry = retryPatterns.some(pattern =>
+            errorMessage.toLowerCase().includes(pattern.toLowerCase())
+          )
+        } else {
+          // Network or other errors
+          const isNetworkError = error?.name === 'TypeError' ||
+                              error?.message?.includes('fetch') ||
+                              error?.message?.includes('network') ||
+                              error?.message?.includes('timeout')
+          shouldRetry = isNetworkError
+          errorMessage = error?.message || 'Unknown error'
+        }
+
+        if (shouldRetry && attempt < maxRetries) {
+          if (logger) logger.log('warn', `${operationName} failed (attempt ${attempt + 1}/${maxRetries + 1}): ${errorMessage}. Retrying...`)
+          attempt++
+
+          // Calculate delay with jitter
+          const delay = Math.min(
+            initialDelay * Math.pow(backoffMultiplier, attempt - 1),
+            maxDelay
+          )
+          const jitteredDelay = delay + Math.random() * (delay * 0.1)
+
+          if (logger) logger.log('debug', `Waiting ${Math.round(jitteredDelay)}ms before retry attempt ${attempt + 1}`)
+          await new Promise(resolve => setTimeout(resolve, jitteredDelay))
+          continue
+        } else {
+          // Not retryable or max attempts reached
+          throw error
+        }
+      }
+    }
+
+    throw lastError
+  }
+
+  /**
    * Retrieves an access token for a given project using API credentials.
    *
    * @param projectId - The unique identifier of the project.
@@ -299,36 +391,37 @@ export default class Base {
     }
     if (typeof options?.origin === 'string' && options?.origin.length > 0) headers.Origin = options.origin
 
-    const response = await fetch(
-      `${Base.basePath}/project/${projectId}/auth/token`, {
+    return Base.executeWithRetry(async () => {
+      const response = await fetch(`${Base.basePath}/project/${projectId}/auth/token`, {
         method: 'GET',
         headers
-      }
-    )
+      })
 
-    const contentType = response.headers.get('content-type')
-    let respBody
-    if (contentType) {
-      try {
-        if (contentType.indexOf('text/plain') === 0) respBody = await response.text()
-        else if (contentType.indexOf('application/json') === 0) respBody = await response.json()
-      } catch (e) {
-        respBody = `${response.status} - ${response.statusText}`
+      const contentType = response.headers.get('content-type')
+      let respBody
+      if (contentType) {
+        try {
+          if (contentType.indexOf('text/plain') === 0) respBody = await response.text()
+          else if (contentType.indexOf('application/json') === 0) respBody = await response.json()
+        } catch (e) {
+          respBody = `${response.status} - ${response.statusText}`
+        }
       }
-    }
-    if (!response.ok) {
-      if (response.status === 403 && respBody && respBody?.cause?.code === 'authorizationError.origin.server.notFound') {
-        respBody.message =
-          'Failed to retrieve access token: access denied. This is due to an API key origin restriction. ' +
-          'If minting a token from a backend for use in a browser, pass the browser-origin when calling retrieveAccessToken() ' +
-          'e.g. NonLocalStorage.retrieveAccessToken("projectId", "apiKey", "apiSecret", { origin: req.headers.origin }).'
+
+      if (!response.ok) {
+        if (response.status === 403 && respBody && respBody?.cause?.code === 'authorizationError.origin.server.notFound') {
+          respBody.message =
+            'Failed to retrieve access token: access denied. This is due to an API key origin restriction. ' +
+            'If minting a token from a backend for use in a browser, pass the browser-origin when calling retrieveAccessToken() ' +
+            'e.g. NonLocalStorage.retrieveAccessToken("projectId", "apiKey", "apiSecret", { origin: req.headers.origin }).'
+        }
+        if (typeof respBody === 'string') throw new Error(respBody)
+        if (respBody) throw respBody
+        if (response.status !== 404) throw new Error(`${response.status} - ${response.statusText}`)
       }
-      if (typeof respBody === 'string') throw new Error(respBody)
-      if (respBody) throw respBody
-      if (response.status !== 404) throw new Error(`${response.status} - ${response.statusText}`)
-    }
-    const accessToken = respBody as string
-    return accessToken
+
+      return respBody as string
+    }, 'Token retrieval', getLogger('warn'))
   }
 
   /**
@@ -558,7 +651,7 @@ export default class Base {
    * @throws Error if the request fails or returns an error status.
    * @remarks
    * Handles authentication, content-type headers, encryption key versions,
-   * and response parsing automatically.
+   * response parsing, and automatic retries for temporary server errors.
    * @private
    */
   async request (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {
@@ -570,52 +663,55 @@ export default class Base {
       throw error
     }
 
-    const basicAuthHeader = (this[CREDENTIALS].apiKey && this[CREDENTIALS].apiSecret) ? `Basic ${btoa(`${this[CREDENTIALS].apiKey}:${this[CREDENTIALS].apiSecret}`)}` : undefined
-    const bearerAuthHeader = this[CREDENTIALS].accessToken ? `Bearer ${this[CREDENTIALS].accessToken}` : undefined
-    let authHeader = this[CREDENTIALS].accessToken ? bearerAuthHeader : basicAuthHeader
-    if (path === '/auth/token') authHeader = basicAuthHeader
+    return Base.executeWithRetry(async () => {
+      const basicAuthHeader = (this[CREDENTIALS].apiKey && this[CREDENTIALS].apiSecret) ? `Basic ${btoa(`${this[CREDENTIALS].apiKey}:${this[CREDENTIALS].apiSecret}`)}` : undefined
+      const bearerAuthHeader = this[CREDENTIALS].accessToken ? `Bearer ${this[CREDENTIALS].accessToken}` : undefined
+      let authHeader = this[CREDENTIALS].accessToken ? bearerAuthHeader : basicAuthHeader
+      if (path === '/auth/token') authHeader = basicAuthHeader
 
-    if (!authHeader) throw new Error('No authentication option provided! (apiKey + apiSecret or accessToken)')
+      if (!authHeader) throw new Error('No authentication option provided! (apiKey + apiSecret or accessToken)')
 
-    const headers: {
-      Authorization: string; [key: string]: string
-    } = {
-      Authorization: authHeader
-    }
-    const isStringBody = typeof body === 'string'
-    const keyVersion = this[ENCRYPTION_SETTINGS]?.keyVersion
-    if (keyVersion !== undefined && keyVersion > -1) {
-      headers['X-Enc-KV'] = keyVersion.toString()
-    }
-    if (this.idSignature) {
-      headers['X-Id-Sig'] = this.idSignature
-      if (this.idSignatureKeyVersion !== undefined) {
-        headers['X-Id-Sig-KV'] = this.idSignatureKeyVersion.toString()
+      const headers: { Authorization: string; [key: string]: string } = {
+        Authorization: authHeader
       }
-    }
-    if (body) headers['Content-Type'] = isStringBody ? 'text/plain' : 'application/json'
-    const response = await fetch(
-      `${Base.basePath}/project/${this[CREDENTIALS].projectId}${path}`, {
+
+      const isStringBody = typeof body === 'string'
+      const keyVersion = this[ENCRYPTION_SETTINGS]?.keyVersion
+      if (keyVersion !== undefined && keyVersion > -1) {
+        headers['X-Enc-KV'] = keyVersion.toString()
+      }
+      if (this.idSignature) {
+        headers['X-Id-Sig'] = this.idSignature
+        if (this.idSignatureKeyVersion !== undefined) {
+          headers['X-Id-Sig-KV'] = this.idSignatureKeyVersion.toString()
+        }
+      }
+      if (body) headers['Content-Type'] = isStringBody ? 'text/plain' : 'application/json'
+
+      const response = await fetch(`${Base.basePath}/project/${this[CREDENTIALS].projectId}${path}`, {
         method,
         headers,
         body: !body ? undefined : isStringBody ? body : JSON.stringify(body)
+      })
+
+      const contentType = response.headers.get('content-type')
+      let respBody
+      if (contentType) {
+        try {
+          if (contentType.indexOf('text/plain') === 0) respBody = await response.text()
+          else if (contentType.indexOf('application/json') === 0) respBody = await response.json()
+        } catch (e) {
+          respBody = `${response.status} - ${response.statusText}`
+        }
       }
-    )
-    const contentType = response.headers.get('content-type')
-    let respBody
-    if (contentType) {
-      try {
-        if (contentType.indexOf('text/plain') === 0) respBody = await response.text()
-        else if (contentType.indexOf('application/json') === 0) respBody = await response.json()
-      } catch (e) {
-        respBody = `${response.status} - ${response.statusText}`
+
+      if (!response.ok) {
+        if (typeof respBody === 'string') throw new Error(respBody)
+        if (respBody) throw respBody
+        if (response.status !== 404) throw new Error(`${response.status} - ${response.statusText}`)
       }
-    }
-    if (!response.ok) {
-      if (typeof respBody === 'string') throw new Error(respBody)
-      if (respBody) throw respBody
-      if (response.status !== 404) throw new Error(`${response.status} - ${response.statusText}`)
-    }
-    return respBody
+
+      return respBody
+    }, 'API request', this.logger)
   }
 }
