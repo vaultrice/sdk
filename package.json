@@ -2,7 +2,7 @@
   "name": "@vaultrice/sdk",
   "description": "A TypeScript/JavaScript SDK for Vaultrice - persistent, encrypted, real-time key-value storage",
   "globalName": "Vaultrice",
-  "version": "0.9.20",
+  "version": "0.9.21",
   "type": "module",
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",
