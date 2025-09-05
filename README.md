@@ -204,12 +204,6 @@ Collection / object helpers
 - merge(name, objectToMerge, options?) — Performs a shallow merge of provided object into the stored object at key. Creates the object if missing.
 - setIn(name, path, value, options?) — Sets a nested value inside a stored object using dot-path (or array of keys). Parents are created as needed.
 
-```ts
-// examples:
-await nls.push('chatMessages', { from: 'alice', text: 'hi' })
-await nls.merge('settings', { theme: 'dark' })
-await nls.setIn('profile', 'user.contact.email', 'alice@example.com')
-```
 
 ### Events & realtime
 
