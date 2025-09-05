@@ -180,6 +180,35 @@ await nls.getAllItems()
 await nls.removeItem('key')
 await nls.removeItems(['k1','k2'])
 await nls.clear()
+
+// Atomic numeric ops:
+await nls.incrementItem('counter')           // increments by 1 (default)
+await nls.incrementItem('counter', 5)        // increments by 5
+await nls.decrementItem('counter')           // decrements by 1 (default)
+await nls.decrementItem('counter', 2) 
+
+// Collection / object helpers:
+await nls.push('my-array', element)          // append element to array (creates array if missing)
+await nls.merge('my-obj', { a: 1 })          // shallow merge into an existing object (creates object if missing)
+await nls.setIn('my-obj', 'user.profile.name', 'Alice') // set deep path inside an object (creates parents as needed)
+```
+
+### Atomic Operations
+
+The SDK offers atomic numeric operations for counters and similar use-cases:
+- incrementItem(name, amount = 1, options?) — Atomically increments a numeric value on the server and returns the updated item metadata.
+- decrementItem(name, amount = 1, options?) — Atomically decrements a numeric value on the server and returns the updated item metadata.
+
+Collection / object helpers
+- push(name, element, options?) — Appends element to an array stored at the key. If the key does not exist it will be created as an array.
+- merge(name, objectToMerge, options?) — Performs a shallow merge of provided object into the stored object at key. Creates the object if missing.
+- setIn(name, path, value, options?) — Sets a nested value inside a stored object using dot-path (or array of keys). Parents are created as needed.
+
+```ts
+// examples:
+await nls.push('chatMessages', { from: 'alice', text: 'hi' })
+await nls.merge('settings', { theme: 'dark' })
+await nls.setIn('profile', 'user.contact.email', 'alice@example.com')
 ```
 
 ### Events & realtime

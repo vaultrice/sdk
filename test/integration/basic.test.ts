@@ -94,6 +94,25 @@ describe(`NonLocalStorage (${process.env.MODE})`, () => {
       expect(decr).to.have.property('createdAt')
       expect(decr).to.have.property('updatedAt')
 
+      await nls.push('my-array', 'first')
+      let arrItem = await nls.getItem('my-array')
+      expect(arrItem).not.to.eql(undefined)
+      expect(arrItem?.value).to.eql(['first'])
+
+      await nls.push('my-array', 'second')
+      arrItem = await nls.getItem('my-array')
+      expect(arrItem?.value).to.eql(['first', 'second'])
+
+      await nls.setItem('my-obj', { a: 1, b: 2 })
+      await nls.merge('my-obj', { b: 3, c: 4 })
+      const merged = await nls.getItem('my-obj')
+      expect(merged?.value).to.eql({ a: 1, b: 3, c: 4 })
+
+      await nls.setItem('my-nested', { user: { profile: { name: 'old' } } })
+      await nls.setIn('my-nested', 'user.profile.name', 'Alice')
+      const nested = await nls.getItem<{ user: { profile: { name: string } } }>('my-nested')
+      expect(nested?.value?.user?.profile?.name).to.eql('Alice')
+
       await nls.clear()
       item = await nls.getItem('my-prop-2')
       expect(item).to.eql(undefined)

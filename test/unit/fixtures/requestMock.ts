@@ -181,6 +181,103 @@ export default () => {
         }
       }
 
+      // push -> append to array (create if missing)
+      if (pathParts[1] === 'cache' && pathParts.length === 6 && method === 'POST' && pathParts.at(-1) === 'push') {
+        const propName = pathParts[4]
+        objects[`${this[CREDENTIALS].projectId}:${this.class}`] ||= {}
+        objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId] ||= {}
+        const target = objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName] ||= {}
+        const element = (body as any)?.value
+        if (!Array.isArray(target.value)) target.value = []
+        target.value.push(element)
+        if ((body as any)?.ttl) {
+          target.ttl = (body as any)?.ttl
+        }
+        target.expiresAt = Date.now() + (target?.ttl || 10000)
+        delete target.ttl
+        target.keyVersion = keyVersion
+        target.createdAt ||= Date.now()
+        target.updatedAt = Date.now()
+        send({ event: 'setItem', payload: { prop: propName, ...target } })
+        return {
+          value: target?.value,
+          expiresAt: target?.expiresAt,
+          keyVersion,
+          createdAt: target?.createdAt,
+          updatedAt: target?.updatedAt
+        }
+      }
+
+      // merge -> shallow merge into object (create if missing)
+      if (pathParts[1] === 'cache' && pathParts.length === 6 && method === 'POST' && pathParts.at(-1) === 'merge') {
+        const propName = pathParts[4]
+        objects[`${this[CREDENTIALS].projectId}:${this.class}`] ||= {}
+        objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId] ||= {}
+        const target = objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName] ||= {}
+        const toMerge = (body as any)?.value || {}
+        const base = (target.value && typeof target.value === 'object' && !Array.isArray(target.value)) ? { ...target.value } : {}
+        target.value = { ...base, ...toMerge }
+        if ((body as any)?.ttl) {
+          target.ttl = (body as any)?.ttl
+        }
+        target.expiresAt = Date.now() + (target?.ttl || 10000)
+        delete target.ttl
+        target.keyVersion = keyVersion
+        target.createdAt ||= Date.now()
+        target.updatedAt = Date.now()
+        send({ event: 'setItem', payload: { prop: propName, ...target } })
+        return {
+          value: target?.value,
+          expiresAt: target?.expiresAt,
+          keyVersion,
+          createdAt: target?.createdAt,
+          updatedAt: target?.updatedAt
+        }
+      }
+
+      // setIn -> set nested path inside object (create parents as needed)
+      if (pathParts[1] === 'cache' && pathParts.length === 6 && method === 'POST' && pathParts.at(-1) === 'set-in') {
+        const propName = pathParts[4]
+        objects[`${this[CREDENTIALS].projectId}:${this.class}`] ||= {}
+        objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId] ||= {}
+        const target = objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName] ||= {}
+        const payload = body as any
+        const path = Array.isArray(payload.path) ? payload.path : (typeof payload.path === 'string' ? payload.path.split('.').filter(Boolean) : [])
+        const val = payload.value
+
+        // ensure we have an object to set into
+        if (!target.value || typeof target.value !== 'object' || Array.isArray(target.value)) target.value = {}
+
+        const setAtPath = (obj: any, keys: string[], v: any) => {
+          if (keys.length === 0) return
+          const [first, ...rest] = keys
+          if (rest.length === 0) {
+            obj[first] = v
+            return
+          }
+          if (typeof obj[first] !== 'object' || obj[first] === null) obj[first] = {}
+          setAtPath(obj[first], rest, v)
+        }
+        setAtPath(target.value, path, val)
+
+        if (payload.ttl) {
+          target.ttl = payload.ttl
+        }
+        target.expiresAt = Date.now() + (target?.ttl || 10000)
+        delete target.ttl
+        target.keyVersion = keyVersion
+        target.createdAt ||= Date.now()
+        target.updatedAt = Date.now()
+        send({ event: 'setItem', payload: { prop: propName, ...target } })
+        return {
+          value: target?.value,
+          expiresAt: target?.expiresAt,
+          keyVersion,
+          createdAt: target?.createdAt,
+          updatedAt: target?.updatedAt
+        }
+      }
+
       // setItems()
       if (pathParts[1] === 'cache' && pathParts.length === 4 && method === 'POST') {
         objects[`${this[CREDENTIALS].projectId}:${this.class}`] ||= {}

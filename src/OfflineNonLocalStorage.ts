@@ -643,6 +643,96 @@ export default async function createOfflineNonLocalStorage (
       return await wrapper.setItem(key, newValue, options)
     },
 
+    async push (key: string, element: any, options?: { ttl?: number }) {
+      if (isOnline && nls) {
+        try {
+          const remote = await nls.push(key, element, options)
+          if (remote) {
+            store[key] = remote
+            await safeStorageSet(storage, key, remote)
+          }
+          return remote
+        } catch (err: any) {
+          if (!isConnectionError(err)) throw err
+          isOnline = false
+          fireLocalEvent('disconnect', {})
+          setTimeout(tryReconnect, delay)
+        }
+      }
+
+      // Offline: emulate push locally
+      isOnline = false
+      const meta = store[key]
+      let arr: any[] = []
+      if (meta && !isExpired(meta) && Array.isArray(meta.value)) {
+        arr = [...meta.value]
+      }
+      arr.push(element)
+      return await wrapper.setItem(key, arr, options)
+    },
+
+    async merge (key: string, objectToMerge: any, options?: { ttl?: number }) {
+      if (isOnline && nls) {
+        try {
+          const remote = await nls.merge(key, objectToMerge, options)
+          if (remote) {
+            store[key] = remote
+            await safeStorageSet(storage, key, remote)
+          }
+          return remote
+        } catch (err: any) {
+          if (!isConnectionError(err)) throw err
+          isOnline = false
+          fireLocalEvent('disconnect', {})
+          setTimeout(tryReconnect, delay)
+        }
+      }
+
+      // Offline: emulate merge locally (shallow merge)
+      isOnline = false
+      const meta = store[key]
+      const base = (meta && !isExpired(meta) && typeof meta.value === 'object' && meta.value !== null) ? { ...meta.value } : {}
+      const merged = { ...base, ...(objectToMerge || {}) }
+      return await wrapper.setItem(key, merged, options)
+    },
+
+    async setIn (key: string, path: string | string[], value: any, options?: { ttl?: number }) {
+      if (isOnline && nls) {
+        try {
+          const remote = await nls.setIn(key, path, value, options)
+          if (remote) {
+            store[key] = remote
+            await safeStorageSet(storage, key, remote)
+          }
+          return remote
+        } catch (err: any) {
+          if (!isConnectionError(err)) throw err
+          isOnline = false
+          fireLocalEvent('disconnect', {})
+          setTimeout(tryReconnect, delay)
+        }
+      }
+
+      // Offline: emulate setIn locally
+      isOnline = false
+      const meta = store[key]
+      const currentValue = (meta && !isExpired(meta) && typeof meta.value === 'object' && meta.value !== null) ? JSON.parse(JSON.stringify(meta.value)) : {}
+      const pathArr = Array.isArray(path) ? path : (typeof path === 'string' ? path.split('.').filter(Boolean) : [])
+      // helper to set nested value
+      const setAtPath = (obj: any, keys: string[], val: any) => {
+        if (keys.length === 0) return val
+        const [first, ...rest] = keys
+        if (rest.length === 0) {
+          obj[first] = val
+          return
+        }
+        if (typeof obj[first] !== 'object' || obj[first] === null) obj[first] = {}
+        setAtPath(obj[first], rest, val)
+      }
+      setAtPath(currentValue, pathArr, value)
+      return await wrapper.setItem(key, currentValue, options)
+    },
+
     on: (event: string, ...args: any[]) => {
       let handler: Function
       let name: string | undefined

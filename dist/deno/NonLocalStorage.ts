@@ -377,6 +377,79 @@ export default class NonLocalStorage extends WebSocketFunctions {
   }
 
   /**
+   * Atomically adds an element to an item that is an array.
+   * If the item does not exist, it will be created as a new array.
+   * @param name - The key of the array item.
+   * @param element - The element to push to the array.
+   * @param options - Optional TTL override.
+   * @returns The updated item metadata.
+   */
+  async push (name: string, element: ValueType, options?: { ttl?: number }): Promise<ItemType> {
+    if (!name) throw new Error('No name passed!')
+
+    const ttl = options?.ttl || this.ttl
+    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}/push`, { value: element, ttl })
+    const item = response as JSONObj
+
+    return {
+      value: item?.value as any[],
+      expiresAt: item?.expiresAt as number,
+      keyVersion: item?.keyVersion as number ?? undefined,
+      createdAt: item?.createdAt as number,
+      updatedAt: item?.updatedAt as number
+    }
+  }
+
+  /**
+   * Atomically merges fields from a given object into an existing JSON object.
+   * If the item does not exist, it will be created.
+   * @param name - The key of the object item.
+   * @param objectToMerge - The object containing fields to merge.
+   * @param options - Optional TTL override.
+   * @returns The updated item metadata.
+   */
+  async merge (name: string, objectToMerge: ValueType, options?: { ttl?: number }): Promise<ItemType> {
+    if (!name) throw new Error('No name passed!')
+
+    const ttl = options?.ttl || this.ttl
+    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}/merge`, { value: objectToMerge, ttl })
+    const item = response as JSONObj
+
+    return {
+      value: item?.value as ValueType,
+      expiresAt: item?.expiresAt as number,
+      keyVersion: item?.keyVersion as number ?? undefined,
+      createdAt: item?.createdAt as number,
+      updatedAt: item?.updatedAt as number
+    }
+  }
+
+  /**
+   * Atomically sets a value deep within a nested JSON object using a path.
+   * @param name - The key of the object item.
+   * @param path - A dot notation string (e.g., "user.profile.name") or an array of keys.
+   * @param value - The value to set at the specified path.
+   * @param options - Optional TTL override.
+   * @returns The updated item metadata.
+   */
+  async setIn (name: string, path: string | string[], value: ValueType, options?: { ttl?: number }): Promise<ItemType> {
+    if (!name) throw new Error('No name passed!')
+    if (!path || path.length === 0) throw new Error('Path must not be empty.')
+
+    const ttl = options?.ttl || this.ttl
+    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}/set-in`, { path, value, ttl })
+    const item = response as JSONObj
+
+    return {
+      value: item?.value as ValueType,
+      expiresAt: item?.expiresAt as number,
+      keyVersion: item?.keyVersion as number ?? undefined,
+      createdAt: item?.createdAt as number,
+      updatedAt: item?.updatedAt as number
+    }
+  }
+
+  /**
    * Remove all items for this instance.
    */
   async clear (): Promise<undefined> {
