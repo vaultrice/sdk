@@ -18,7 +18,7 @@ A secure, real-time cloud storage SDK with a familiar `localStorage`-like API �
 3.  [Feature overview](#-feature-overview)
 4.  [Authentication](#-authentication)
 5.  [API overview](#-api-overview)
-6.  [Presence & messaging](#-presence--messaging)
+6.  [Presence](#-presence)
 7.  [End-to-end encryption (E2EE)](#-end-to-end-encryption-e2ee)
 8.  [Rate Limiting & Throttling](#-rate-limiting--throttling)
 9.  [SyncObject (reactive object)](#-syncobject-reactive-object)
@@ -202,9 +202,9 @@ nls.send({ type: 'chat', message: 'hi' })                 // via WebSocket
 await nls.send({ type: 'notice' }, { transport: 'http' }) // via HTTP (also reaches sender)
 ```
 
-<span id="-presence--messaging"></span>
+<span id="-presence"></span>
 
-## 👥 Presence & messaging
+## 👥 Presence
 
 ```ts
 await nls.join({ userId: 'u1', name: 'Alice' })  // announces presence
