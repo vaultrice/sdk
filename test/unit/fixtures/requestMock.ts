@@ -208,6 +208,44 @@ export default () => {
         }
       }
 
+      // splice -> emulate Array.prototype.splice on server (create array if missing)
+      if (pathParts[1] === 'cache' && pathParts.length === 6 && method === 'POST' && pathParts.at(-1) === 'splice') {
+        const propName = pathParts[4]
+        objects[`${this[CREDENTIALS].projectId}:${this.class}`] ||= {}
+        objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId] ||= {}
+        const target = objects[`${this[CREDENTIALS].projectId}:${this.class}`][objectId][propName] ||= {}
+        const payload = body as any
+        const startIndex = typeof payload.startIndex === 'number' ? payload.startIndex : 0
+        const deleteCount = typeof payload.deleteCount === 'number' ? payload.deleteCount : 0
+        const itemsToInsert = Array.isArray(payload.items) ? payload.items : []
+
+        if (!Array.isArray(target.value)) target.value = []
+        // normalize start index similar to Array.prototype.splice
+        const len = target.value.length
+        let start = startIndex
+        if (start < 0) start = Math.max(len + start, 0)
+        if (start > len) start = len
+
+        target.value.splice(start, deleteCount, ...itemsToInsert)
+
+        if (payload.ttl) {
+          target.ttl = payload.ttl
+        }
+        target.expiresAt = Date.now() + (target?.ttl || 10000)
+        delete target.ttl
+        target.keyVersion = keyVersion
+        target.createdAt ||= Date.now()
+        target.updatedAt = Date.now()
+        send({ event: 'setItem', payload: { prop: propName, ...target } })
+        return {
+          value: target?.value,
+          expiresAt: target?.expiresAt,
+          keyVersion,
+          createdAt: target?.createdAt,
+          updatedAt: target?.updatedAt
+        }
+      }
+
       // merge -> shallow merge into object (create if missing)
       if (pathParts[1] === 'cache' && pathParts.length === 6 && method === 'POST' && pathParts.at(-1) === 'merge') {
         const propName = pathParts[4]

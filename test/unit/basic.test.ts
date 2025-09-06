@@ -135,6 +135,18 @@ describe('NonLocalStorage', () => {
       arrItem = await nls.getItem('my-array')
       expect(arrItem?.value).to.eql(['first', 'second'])
 
+      // splice -> remove/replace elements in array (server + offline behavior)
+      await nls.setItem('my-array-2', ['a', 'b', 'c', 'd'])
+      await nls.splice('my-array-2', 1, 2, ['x', 'y'])
+      const spliced = await nls.getItem('my-array-2')
+      expect(spliced?.value).to.eql(['a', 'x', 'y', 'd'])
+
+      // negative start index behaviour
+      await nls.setItem('my-array-3', ['one', 'two', 'three'])
+      await nls.splice('my-array-3', -1, 1, ['last'])
+      const splicedNeg = await nls.getItem('my-array-3')
+      expect(splicedNeg?.value).to.eql(['one', 'two', 'last'])
+
       // merge -> shallow merge into existing object
       await nls.setItem('my-obj', { a: 1, b: 2 })
       await nls.merge('my-obj', { b: 3, c: 4 })

@@ -184,7 +184,7 @@ export default class WebSocketFunctions extends Base {
       try {
         await this.request('POST', `/message/${this.class}/${this.id}`, msgToSend)
       } catch (e) {
-        if (!e || (e as any)?.cause?.name !== 'ConflictError') throw e
+        if (!e || (e as any)?.cause?.code !== 'conflictError.keyVersion.mismatch') throw e
         this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
         await this.getEncryptionSettings()
         await this.request('POST', `/message/${this.class}/${this.id}`, msgToSend)
@@ -1162,7 +1162,7 @@ export default class WebSocketFunctions extends Base {
     try {
       response = await this.request('GET', `/presence-list/${this.class}/${this.id}`)
     } catch (e) {
-      if (!e || (e as any)?.cause?.name !== 'ConflictError') throw e
+      if (!e || (e as any)?.cause?.code !== 'conflictError.keyVersion.mismatch') throw e
       this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
       await this.getEncryptionSettings()
       response = await this.request('GET', `/presence-list/${this.class}/${this.id}`)

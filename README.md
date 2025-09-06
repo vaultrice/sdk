@@ -171,9 +171,11 @@ new NonLocalStorage(credentials, options?)
 ### Storage API (familiar)
 
 ```ts
-await nls.setItem('key', value)
+// All write operations accept an optional `options` object:
+// options: { ttl?: number, updatedAt?: number }
+await nls.setItem('key', value, options?)
 const item = await nls.getItem('key') // { value, createdAt, updatedAt, expiresAt, keyVersion? }
-await nls.setItems({ key1: { value }, key2: { value } })
+await nls.setItems({ key1: { value }, key2: { value, ...options } })
 await nls.getItems(['key1','key2'])
 await nls.getAllKeys()
 await nls.getAllItems()
@@ -182,15 +184,25 @@ await nls.removeItems(['k1','k2'])
 await nls.clear()
 
 // Atomic numeric ops:
-await nls.incrementItem('counter')           // increments by 1 (default)
+await nls.incrementItem('counter', options?)           // increments by 1 (default)
 await nls.incrementItem('counter', 5)        // increments by 5
 await nls.decrementItem('counter')           // decrements by 1 (default)
 await nls.decrementItem('counter', 2) 
 
 // Collection / object helpers:
-await nls.push('my-array', element)          // append element to array (creates array if missing)
-await nls.merge('my-obj', { a: 1 })          // shallow merge into an existing object (creates object if missing)
-await nls.setIn('my-obj', 'user.profile.name', 'Alice') // set deep path inside an object (creates parents as needed)
+await nls.push('my-array', element, options?)          // append element to array (creates array if missing)
+await nls.splice('my-array', startIndex, deleteCount, items?, options?) // remove/replace elements (like Array.prototype.splice)
+await nls.merge('my-obj', { a: 1 }, options?)          // shallow merge into an existing object (creates object if missing)
+await nls.setIn('my-obj', 'user.profile.name', 'Alice', options?) // set deep path inside an object (creates parents as needed)
+```
+
+Example: splice
+
+```ts
+// remove 2 elements at index 1 and insert 'x','y'
+await nls.setItem('arr', ['a','b','c','d'])
+await nls.splice('arr', 1, 2, ['x','y'])
+const updated = await nls.getItem('arr') // ['a','x','y','d']
 ```
 
 ### Atomic Operations

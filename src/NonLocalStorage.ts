@@ -63,9 +63,11 @@ export default class NonLocalStorage extends WebSocketFunctions {
    *   @default 3600000 (1 hour)
    * @param options.ifAbsent - If true only set if item absent.
    *   @default false
+   * @param options.updatedAt - If provided, the operation will only succeed if the remote item's updatedAt timestamp matches this value.
+   *   @default undefined
    * @returns Metadata about the stored item.
    */
-  async setItem (name: string, value: ValueType, options?: { ttl?: number, ifAbsent?: boolean }): Promise<ItemType | undefined> {
+  async setItem (name: string, value: ValueType, options?: { ttl?: number, ifAbsent?: boolean, updatedAt?: number }): Promise<ItemType | undefined> {
     if (!name) throw new Error('No name passed!')
     if (!value && value !== 0 && value !== '' && value !== false) throw new Error('No value passed!')
     if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
@@ -76,9 +78,9 @@ export default class NonLocalStorage extends WebSocketFunctions {
 
     let response
     try {
-      response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}`, { value: valueToStore, ttl, ifAbsent: options?.ifAbsent })
+      response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}`, { value: valueToStore, ttl, ifAbsent: options?.ifAbsent, updatedAt: options?.updatedAt })
     } catch (e) {
-      if (!e || (e as any)?.cause?.name !== 'ConflictError') throw e
+      if (!e || (e as any)?.cause?.code !== 'conflictError.keyVersion.mismatch') throw e
       this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
       await this.getEncryptionSettings()
       response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}`, { value: valueToStore, ttl, ifAbsent: options?.ifAbsent })
@@ -105,9 +107,10 @@ export default class NonLocalStorage extends WebSocketFunctions {
    *   }
    *   `ttl` is time-to-live in milliseconds for each item. @default 3600000 (1 hour)
    *   `ifAbsent` if true only set if item absent - for each item. @default false
+   *   `updatedAt` If provided, the operation will only succeed if the remote item's updatedAt timestamp matches this value. @default undefined
    * @returns Metadata for each stored item.
    */
-  async setItems (items: Record<string, { value: ValueType, ttl?: number, ifAbsent?: boolean }>): Promise<ItemsType | undefined> {
+  async setItems (items: Record<string, { value: ValueType, ttl?: number, ifAbsent?: boolean, updatedAt?: number }>): Promise<ItemsType | undefined> {
     if (!items || Object.keys(items).length === 0) throw new Error('No items passed!')
     if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
 
@@ -124,7 +127,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
     try {
       response = await this.request('POST', `/cache/${this.class}/${this.id}`, items)
     } catch (e) {
-      if (!e || (e as any)?.cause?.name !== 'ConflictError') throw e
+      if (!e || (e as any)?.cause?.code !== 'conflictError.keyVersion.mismatch') throw e
       this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
       await this.getEncryptionSettings()
       response = await this.request('POST', `/cache/${this.class}/${this.id}`, items)
@@ -155,7 +158,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
     try {
       response = await this.request('GET', `/cache/${this.class}/${this.id}/${name}`)
     } catch (e) {
-      if (!e || (e as any)?.cause?.name !== 'ConflictError') throw e
+      if (!e || (e as any)?.cause?.code !== 'conflictError.keyVersion.mismatch') throw e
       this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
       await this.getEncryptionSettings()
       response = await this.request('GET', `/cache/${this.class}/${this.id}/${name}`)
@@ -200,7 +203,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
     try {
       response = await this.request('POST', `/cache-query/${this.class}/${this.id}`, names)
     } catch (e) {
-      if (!e || (e as any)?.cause?.name !== 'ConflictError') throw e
+      if (!e || (e as any)?.cause?.code !== 'conflictError.keyVersion.mismatch') throw e
       this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
       await this.getEncryptionSettings()
       response = await this.request('POST', `/cache-query/${this.class}/${this.id}`, names)
@@ -264,7 +267,7 @@ export default class NonLocalStorage extends WebSocketFunctions {
     try {
       response = await this.request('GET', `/cache/${this.class}/${this.id}${options?.prefix ? `?prefix=${options?.prefix}` : ''}`)
     } catch (e) {
-      if (!e || (e as any)?.cause?.name !== 'ConflictError') throw e
+      if (!e || (e as any)?.cause?.code !== 'conflictError.keyVersion.mismatch') throw e
       this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
       await this.getEncryptionSettings()
       response = await this.request('GET', `/cache/${this.class}/${this.id}${options?.prefix ? `?prefix=${options?.prefix}` : ''}`)
@@ -328,17 +331,21 @@ export default class NonLocalStorage extends WebSocketFunctions {
    * Atomically increment a numeric value.
    * @param name - The key name.
    * @param value - Amount to increment by (default 1).
-   * @param options - Optional TTL override.
+   * @param options - Optional overrides.
+   * @param options.ttl - Time-to-live in milliseconds for this item.
+   *   @default 3600000 (1 hour)
+   * @param options.updatedAt - If provided, the operation will only succeed if the remote item's updatedAt timestamp matches this value.
+   *   @default undefined
    * @returns The updated item.
    */
-  async incrementItem (name: string, value: number = 1, options?: { ttl?: number }): Promise<ItemType> {
+  async incrementItem (name: string, value: number = 1, options?: { ttl?: number, updatedAt?: number }): Promise<ItemType> {
     if (!name) throw new Error('No name passed!')
     if (value === undefined || value === null) throw new Error('No value passed!')
     if (typeof value !== 'number') throw new Error('Value needs to be a number!')
 
     const ttl = options?.ttl || this.ttl
 
-    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}/increment`, { value, ttl })
+    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}/increment`, { value, ttl, updatedAt: options?.updatedAt })
     const item = response as JSONObj
 
     return {
@@ -354,17 +361,21 @@ export default class NonLocalStorage extends WebSocketFunctions {
    * Atomically decrement a numeric value.
    * @param name - The key name.
    * @param value - Amount to decrement by (default 1).
-   * @param options - Optional TTL override.
+   * @param options - Optional overrides.
+   * @param options.ttl - Time-to-live in milliseconds for this item.
+   *   @default 3600000 (1 hour)
+   * @param options.updatedAt - If provided, the operation will only succeed if the remote item's updatedAt timestamp matches this value.
+   *   @default undefined
    * @returns The updated item.
    */
-  async decrementItem (name: string, value: number = 1, options?: { ttl?: number }): Promise<ItemType> {
+  async decrementItem (name: string, value: number = 1, options?: { ttl?: number, updatedAt?: number }): Promise<ItemType> {
     if (!name) throw new Error('No name passed!')
     if (value === undefined || value === null) throw new Error('No value passed!')
     if (typeof value !== 'number') throw new Error('Value needs to be a number!')
 
     const ttl = options?.ttl || this.ttl
 
-    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}/decrement`, { value, ttl })
+    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}/decrement`, { value, ttl, updatedAt: options?.updatedAt })
     const item = response as JSONObj
 
     return {
@@ -381,14 +392,59 @@ export default class NonLocalStorage extends WebSocketFunctions {
    * If the item does not exist, it will be created as a new array.
    * @param name - The key of the array item.
    * @param element - The element to push to the array.
-   * @param options - Optional TTL override.
+   * @param options - Optional overrides.
+   * @param options.ttl - Time-to-live in milliseconds for this item.
+   *   @default 3600000 (1 hour)
+   * @param options.updatedAt - If provided, the operation will only succeed if the remote item's updatedAt timestamp matches this value.
+   *   @default undefined
    * @returns The updated item metadata.
    */
-  async push (name: string, element: ValueType, options?: { ttl?: number }): Promise<ItemType> {
+  async push (name: string, element: ValueType, options?: { ttl?: number, updatedAt?: number }): Promise<ItemType> {
     if (!name) throw new Error('No name passed!')
 
     const ttl = options?.ttl || this.ttl
-    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}/push`, { value: element, ttl })
+    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}/push`, { value: element, ttl, updatedAt: options?.updatedAt })
+    const item = response as JSONObj
+
+    return {
+      value: item?.value as any[],
+      expiresAt: item?.expiresAt as number,
+      keyVersion: item?.keyVersion as number ?? undefined,
+      createdAt: item?.createdAt as number,
+      updatedAt: item?.updatedAt as number
+    }
+  }
+
+  /**
+   * Atomically modifies an array item using splice semantics.
+   * @param name - The key of the array item.
+   * @param startIndex - The index to start changing the array.
+   * @param deleteCount - The number of elements to remove.
+   * @param items - Optional array of elements to add.
+   * @param options - Optional overrides.
+   * @param options.ttl - Time-to-live in milliseconds for this item.
+   *   @default 3600000 (1 hour)
+   * @param options.updatedAt - If provided, the operation will only succeed if the remote item's updatedAt timestamp matches this value.
+   *   @default undefined
+   * @returns The updated item metadata.
+   */
+  async splice (
+    name: string,
+    startIndex: number,
+    deleteCount: number,
+    items?: ValueType[],
+    options?: { ttl?: number, updatedAt?: number }
+  ): Promise<ItemType> {
+    if (!name) throw new Error('No name passed!')
+
+    const ttl = options?.ttl || this.ttl
+    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}/splice`, {
+      startIndex,
+      deleteCount,
+      items,
+      ttl,
+      updatedAt: options?.updatedAt
+    })
     const item = response as JSONObj
 
     return {
@@ -405,14 +461,18 @@ export default class NonLocalStorage extends WebSocketFunctions {
    * If the item does not exist, it will be created.
    * @param name - The key of the object item.
    * @param objectToMerge - The object containing fields to merge.
-   * @param options - Optional TTL override.
+   * @param options - Optional overrides.
+   * @param options.ttl - Time-to-live in milliseconds for this item.
+   *   @default 3600000 (1 hour)
+   * @param options.updatedAt - If provided, the operation will only succeed if the remote item's updatedAt timestamp matches this value.
+   *   @default undefined
    * @returns The updated item metadata.
    */
-  async merge (name: string, objectToMerge: ValueType, options?: { ttl?: number }): Promise<ItemType> {
+  async merge (name: string, objectToMerge: ValueType, options?: { ttl?: number, updatedAt?: number }): Promise<ItemType> {
     if (!name) throw new Error('No name passed!')
 
     const ttl = options?.ttl || this.ttl
-    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}/merge`, { value: objectToMerge, ttl })
+    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}/merge`, { value: objectToMerge, ttl, updatedAt: options?.updatedAt })
     const item = response as JSONObj
 
     return {
@@ -429,15 +489,19 @@ export default class NonLocalStorage extends WebSocketFunctions {
    * @param name - The key of the object item.
    * @param path - A dot notation string (e.g., "user.profile.name") or an array of keys.
    * @param value - The value to set at the specified path.
-   * @param options - Optional TTL override.
+   * @param options - Optional overrides.
+   * @param options.ttl - Time-to-live in milliseconds for this item.
+   *   @default 3600000 (1 hour)
+   * @param options.updatedAt - If provided, the operation will only succeed if the remote item's updatedAt timestamp matches this value.
+   *   @default undefined
    * @returns The updated item metadata.
    */
-  async setIn (name: string, path: string | string[], value: ValueType, options?: { ttl?: number }): Promise<ItemType> {
+  async setIn (name: string, path: string | string[], value: ValueType, options?: { ttl?: number, updatedAt?: number }): Promise<ItemType> {
     if (!name) throw new Error('No name passed!')
     if (!path || path.length === 0) throw new Error('Path must not be empty.')
 
     const ttl = options?.ttl || this.ttl
-    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}/set-in`, { path, value, ttl })
+    const response = await this.request('POST', `/cache/${this.class}/${this.id}/${name}/set-in`, { path, value, ttl, updatedAt: options?.updatedAt })
     const item = response as JSONObj
 
     return {

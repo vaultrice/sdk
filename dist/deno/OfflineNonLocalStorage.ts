@@ -302,7 +302,7 @@ export default async function createOfflineNonLocalStorage (
 
   // --- Build API wrapper ---
   const wrapper: any = {
-    async setItem (key: string, value: any, opts?: { ttl?: number, ifAbsent?: boolean }) {
+    async setItem (key: string, value: any, opts?: { ttl?: number, ifAbsent?: boolean, updatedAt?: number }) {
       const now = Date.now()
       const effectiveTtl = opts?.ttl ?? ttl ?? DEFAULT_TTL
       const existingMeta = store[key]
@@ -449,7 +449,7 @@ export default async function createOfflineNonLocalStorage (
       return items
     },
 
-    async setItems (items: Record<string, { value: any, ttl?: number, ifAbsent?: boolean }>) {
+    async setItems (items: Record<string, { value: any, ttl?: number, ifAbsent?: boolean, updatedAt?: number }>) {
       if (isOnline && nls) {
         try {
           const remote = await nls.setItems(items)
@@ -587,7 +587,7 @@ export default async function createOfflineNonLocalStorage (
       }
     },
 
-    async incrementItem (key: string, value: number = 1, options?: { ttl?: number }) {
+    async incrementItem (key: string, value: number = 1, options?: { ttl?: number, updatedAt?: number }) {
       if (isOnline && nls) {
         try {
           const remote = await nls.incrementItem(key, value, options)
@@ -615,7 +615,7 @@ export default async function createOfflineNonLocalStorage (
       return wrapper.setItem(key, newValue, options)
     },
 
-    async decrementItem (key: string, value: number = 1, options?: { ttl?: number }) {
+    async decrementItem (key: string, value: number = 1, options?: { ttl?: number, updatedAt?: number }) {
       if (isOnline && nls) {
         try {
           const remote = await nls.decrementItem(key, value, options)
@@ -643,7 +643,7 @@ export default async function createOfflineNonLocalStorage (
       return await wrapper.setItem(key, newValue, options)
     },
 
-    async push (key: string, element: any, options?: { ttl?: number }) {
+    async push (key: string, element: any, options?: { ttl?: number, updatedAt?: number }) {
       if (isOnline && nls) {
         try {
           const remote = await nls.push(key, element, options)
@@ -671,7 +671,46 @@ export default async function createOfflineNonLocalStorage (
       return await wrapper.setItem(key, arr, options)
     },
 
-    async merge (key: string, objectToMerge: any, options?: { ttl?: number }) {
+    async splice (
+      key: string,
+      startIndex: number,
+      deleteCount: number,
+      items?: any[],
+      options?: { ttl?: number, updatedAt?: number }
+    ) {
+      if (isOnline && nls) {
+        try {
+          const remote = await nls.splice(key, startIndex, deleteCount, items, options)
+          if (remote) {
+            store[key] = remote
+            await safeStorageSet(storage, key, remote)
+          }
+          return remote
+        } catch (err: any) {
+          if (!isConnectionError(err)) throw err
+          isOnline = false
+          fireLocalEvent('disconnect', {})
+          setTimeout(tryReconnect, delay)
+        }
+      }
+
+      // Offline: emulate splice locally
+      isOnline = false
+      const meta = store[key]
+      let arr: any[] = []
+      if (meta && !isExpired(meta) && Array.isArray(meta.value)) {
+        arr = [...meta.value]
+      }
+      // Normalize startIndex similar to Array.prototype.splice behavior
+      const len = arr.length
+      let start = startIndex
+      if (start < 0) start = Math.max(len + start, 0)
+      if (start > len) start = len
+      arr.splice(start, deleteCount, ...(items ?? []))
+      return await wrapper.setItem(key, arr, options)
+    },
+
+    async merge (key: string, objectToMerge: any, options?: { ttl?: number, updatedAt?: number }) {
       if (isOnline && nls) {
         try {
           const remote = await nls.merge(key, objectToMerge, options)
@@ -696,7 +735,7 @@ export default async function createOfflineNonLocalStorage (
       return await wrapper.setItem(key, merged, options)
     },
 
-    async setIn (key: string, path: string | string[], value: any, options?: { ttl?: number }) {
+    async setIn (key: string, path: string | string[], value: any, options?: { ttl?: number, updatedAt?: number }) {
       if (isOnline && nls) {
         try {
           const remote = await nls.setIn(key, path, value, options)
