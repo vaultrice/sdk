@@ -690,7 +690,42 @@ export default class WebSocketFunctions extends Base {
   async getWebSocket (waitForOpen: boolean = true): Promise<WebSocket> {
     if (!this[CREDENTIALS].accessToken && this.isGettingAccessToken) await this.isGettingAccessToken
 
-    if (this[WEBSOCKET]) return this[WEBSOCKET]
+    if (this[WEBSOCKET]) {
+      if (waitForOpen && this[WEBSOCKET].readyState === WebSocket.CONNECTING) {
+        // Wait for the existing connection to open
+        return new Promise((resolve, reject) => {
+          const ws = this[WEBSOCKET]!
+          const cleanup = () => {
+            ws.removeEventListener('open', onOpen)
+            ws.removeEventListener('error', onError)
+            ws.removeEventListener('close', onClose)
+          }
+          const onOpen = () => {
+            cleanup()
+            resolve(ws)
+          }
+          const onError = (error: Event) => {
+            cleanup()
+            reject(error || new Error('WebSocket connection failed'))
+          }
+          const onClose = () => {
+            cleanup()
+            reject(new Error('WebSocket connection closed during opening'))
+          }
+
+          // If already open by the time we get here, resolve immediately
+          if (ws.readyState === WebSocket.OPEN) {
+            resolve(ws)
+            return
+          }
+
+          ws.addEventListener('open', onOpen, { once: true })
+          ws.addEventListener('error', onError, { once: true })
+          ws.addEventListener('close', onClose, { once: true })
+        })
+      }
+      return this[WEBSOCKET]
+    }
 
     this.autoReconnect = this.configuredAutoReconnect
 
