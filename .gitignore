@@ -9,3 +9,5 @@ dist/*
 !dist/deno/
 
 .env.*
+
+tryme.js

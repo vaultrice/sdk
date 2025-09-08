@@ -331,9 +331,9 @@ export default class WebSocketFunctions extends Base {
       if (event === 'connect') {
         if (typeof handlerOrName !== 'function') throw new Error('No event handler defined!')
         const hndl = handlerOrName as () => void
-        const wsListener = () => hndl()
-        ws.addEventListener('open', wsListener)
-        eventSet.add({ handler: hndl, wsListener })
+        // Don't attach to 'open' event - the connect event will be fired manually
+        // when connectionId is set in the control message handler
+        eventSet.add({ handler: hndl })
       }
 
       if (event === 'disconnect') {
@@ -778,8 +778,20 @@ export default class WebSocketFunctions extends Base {
       // Server-side handshake: record/refresh assigned connectionId
       if ((evName === 'connected' || evName === 'resume:ack') && parsed.connectionId) {
         this.connectionId = parsed.connectionId
-        // optionally notify user-level 'connected' or 'resume:ack' events:
-        // we don't add a custom event emitter; consumers can listen to message events if desired
+        this.isConnected = true  // Set isConnected = true here when handshake completes
+
+        // Fire the 'connect' event now that we have a connectionId
+        const connectHandlers = this[EVENT_HANDLERS].get('connect')
+        if (connectHandlers) {
+          for (const entry of connectHandlers) {
+            try {
+              entry.handler()
+            } catch (e: any) {
+              this.logger.log('error', e)
+            }
+          }
+        }
+
         // prevent user handlers from getting the handshake messages
         if (typeof (evt as any).stopImmediatePropagation === 'function') {
           try { (evt as any).stopImmediatePropagation() } catch (_) {}
@@ -810,10 +822,11 @@ export default class WebSocketFunctions extends Base {
     })
     // When socket opens: send resume if we have a saved connectionId, start heartbeat
     ws.addEventListener('open', () => {
-      this.isConnected = true
+      // this.isConnected = true
+      // Don't set isConnected = true here yet - wait for handshake
       this.reconnectAttempts = 0
       if (this.connectionId) {
-        // send an immediate resume handshake (server expects: { event: 'resume', connectionId })
+        // send an immediate resume handshake (server expects: { event: 'resume', connectionId: this.connectionId })
         try { ws.send(JSON.stringify({ event: 'resume', connectionId: this.connectionId })) } catch (_) {}
       }
       // start the heartbeat
@@ -891,8 +904,11 @@ export default class WebSocketFunctions extends Base {
                 for (const entry of handlers) {
                   let wsListener: EventListener | undefined
                   if (event === 'connect') {
-                    wsListener = () => entry.handler()
-                    ws.addEventListener('open', wsListener)
+                    // wsListener = () => entry.handler()
+                    // ws.addEventListener('open', wsListener)
+                    // For connect events during reconnection, don't attach to 'open'
+                    // The control message handler will fire these when connectionId is received
+                    // No wsListener needed
                   } else if (event === 'disconnect') {
                     wsListener = () => entry.handler()
                     ws.addEventListener('close', wsListener)
@@ -965,18 +981,18 @@ export default class WebSocketFunctions extends Base {
                   if (wsListener) entry.wsListener = wsListener
                 }
               }
-              // Call 'connect' event handlers
-              const connectHandlers = this[EVENT_HANDLERS].get('connect')
-              if (connectHandlers) {
-                for (const entry of connectHandlers) {
-                  try {
-                    entry.handler()
-                  } catch (e: any) {
-                    // Optionally log or handle errors
-                    this.logger.log('error', e)
-                  }
-                }
-              }
+              // // Call 'connect' event handlers
+              // const connectHandlers = this[EVENT_HANDLERS].get('connect')
+              // if (connectHandlers) {
+              //   for (const entry of connectHandlers) {
+              //     try {
+              //       entry.handler()
+              //     } catch (e: any) {
+              //       // Optionally log or handle errors
+              //       this.logger.log('error', e)
+              //     }
+              //   }
+              // }
               if (wasJoined && lastJoinData) {
                 await this.join(lastJoinData)
               }
