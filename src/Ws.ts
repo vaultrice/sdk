@@ -1198,10 +1198,14 @@ export default class WebSocketFunctions extends Base {
    * - joinedAt: Timestamp when the connection joined
    * - data: Custom data provided when joining (automatically decrypted)
    *
+   * Your own connection always appears first in the list for convenience.
+   *
    * @example
    * ```typescript
    * const connections = await instance.getJoinedConnections();
    * console.log(`${connections.length} users online`);
+   * const myConnection = connections[0]; // Always your connection
+   * const otherUsers = connections.slice(1); // All other users
    * connections.forEach(conn => {
    *   console.log(`User: ${conn.data.username}, joined: ${new Date(conn.joinedAt)}`);
    * });
@@ -1209,25 +1213,39 @@ export default class WebSocketFunctions extends Base {
    */
   async getJoinedConnections (): Promise<JoinedConnections> {
     if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
-    let response
-    try {
-      response = await this.request('GET', `/presence-list/${this.class}/${this.id}`)
-    } catch (e) {
-      if (!e || (e as any)?.cause?.code !== 'conflictError.keyVersion.mismatch') throw e
-      this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
-      await this.getEncryptionSettings()
-      response = await this.request('GET', `/presence-list/${this.class}/${this.id}`)
+
+    const response = await this.request('GET', `/presence-list/${this.class}/${this.id}`)
+    const connections = response as any[]
+
+    if (!connections || !Array.isArray(connections)) return []
+
+    const decryptedConnections: JoinedConnections = []
+    for (const connection of connections) {
+      if (!connection?.data) {
+        decryptedConnections.push(connection)
+        continue
+      }
+
+      const encryptionHandler = await this.getEncryptionHandlerForKeyVersion(connection.keyVersion)
+      const data = (encryptionHandler && typeof connection.data === 'string') ? JSON.parse(await encryptionHandler.decrypt(connection.data as string)) : connection.data
+
+      decryptedConnections.push({
+        ...connection,
+        data
+      })
     }
 
-    const joined = response as any[]
-    return Promise.all(joined?.map(async (c) => {
-      const encryptionHandler = await this.getEncryptionHandlerForKeyVersion(c.keyVersion as number)
-      const data = encryptionHandler ? JSON.parse(await encryptionHandler.decrypt(c.data as string)) : c.data
-      return {
-        connectionId: c.connectionId,
-        joinedAt: c.joinedAt,
-        data
+    // Sort so that your own connection comes first
+    const myConnectionId = this.connectionId
+    if (myConnectionId) {
+      const myConnectionIndex = decryptedConnections.findIndex(conn => conn.connectionId === myConnectionId)
+      if (myConnectionIndex > 0) {
+        // Move my connection to the front
+        const myConnection = decryptedConnections.splice(myConnectionIndex, 1)[0]
+        decryptedConnections.unshift(myConnection)
       }
-    }) || [])
+    }
+
+    return decryptedConnections
   }
 }

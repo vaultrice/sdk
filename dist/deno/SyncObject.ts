@@ -121,6 +121,16 @@ export default async function createSyncObject<T extends object> (
     } else {
       joinedConnections.push(joinedConnection)
     }
+
+    // Ensure my connection is always first
+    const myConnectionId = nls.connectionId
+    if (myConnectionId) {
+      const myConnectionIndex = joinedConnections.findIndex(c => c.connectionId === myConnectionId)
+      if (myConnectionIndex > 0) {
+        const myConnection = joinedConnections.splice(myConnectionIndex, 1)[0]
+        joinedConnections.unshift(myConnection)
+      }
+    }
   })
 
   nls.on('presence:leave', (leavedConnection) => {
