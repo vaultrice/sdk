@@ -73,7 +73,7 @@ console.log(item?.value) // 'value'
 | Cross-tab/browser/device/domain | Seamless state sharing across environments |
 | Real-time sync | WebSocket-based updates, instant across clients |
 | Optional end-to-end encryption | Data encrypted client-side, never readable on the server |
-| **Client-Side Throttling** | **Built-in rate limiting to prevent accidental abuse** |
+| Client-Side Throttling | Built-in rate limiting to prevent accidental abuse |
 | TTL support | Auto-expiry per key or object |
 | Event system | Listen to changes, removals, messages |
 | SyncObject API | Reactive object that syncs automatically |
