@@ -375,6 +375,10 @@ export interface SyncObjectMeta {
    * Indicates if the SyncObject is currently connected.
    */
   readonly isConnected: boolean
+  /**
+   * Connection ID assigned by the server for the WebSocket connection.
+   */
+  readonly connectionId?: string
 }
 
 /**

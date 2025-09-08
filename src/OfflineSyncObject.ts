@@ -114,6 +114,12 @@ export default async function createOfflineSyncObject<T extends object> (
           enumerable: true,
           configurable: true
         })
+      } else if (prop === 'connectionId') {
+        Object.defineProperty(base, 'connectionId', {
+          get: () => syncObject ? syncObject.connectionId : undefined,
+          enumerable: true,
+          configurable: true
+        })
       } else if (prop === 'useAccessToken') base.useAccessToken = () => { }
       else if (prop === 'onAccessTokenExpiring') base.onAccessTokenExpiring = addAccessTokenExpiringListener
       else if (prop === 'offAccessTokenExpiring') base.offAccessTokenExpiring = removeAccessTokenExpiringListener
@@ -252,6 +258,12 @@ export default async function createOfflineSyncObject<T extends object> (
       if (prop === 'on') return proxyTarget.on
       if (prop === 'off') return proxyTarget.off
       if (prop === 'isConnected') return isOnline
+      if (prop === 'connectionId') {
+        if (isOnline && syncObject) {
+          return syncObject.connectionId
+        }
+        return undefined
+      }
       if (reservedProps.includes(prop as string)) {
         if (isOnline && syncObject) {
           return Reflect.get(syncObject, prop, receiver)

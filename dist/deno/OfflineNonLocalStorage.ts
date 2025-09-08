@@ -856,6 +856,10 @@ export default async function createOfflineNonLocalStorage (
       return isOnline
     },
 
+    get connectionId () {
+      return nls?.connectionId
+    },
+
     id
   }
 

@@ -15,6 +15,7 @@ export const reservedProps = [
   'leave',
   'send',
   'joinedConnections',
+  'connectionId',
   'useAccessToken',
   'onAccessTokenExpiring',
   'offAccessTokenExpiring',
@@ -306,6 +307,12 @@ export default async function createSyncObject<T extends object> (
     configurable: false,
     enumerable: true,
     get: () => joinedConnections
+  })
+
+  Object.defineProperty(base, 'connectionId', {
+    configurable: false,
+    enumerable: true,
+    get: () => nls.connectionId
   })
 
   Object.defineProperty(base, 'useAccessToken', {

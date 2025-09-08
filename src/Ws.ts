@@ -104,8 +104,8 @@ export default class WebSocketFunctions extends Base {
   /** @internal Storage key for connection resume token. */
   // private resumeStorageKey?: string
 
-  /** @internal connectionId for connection resume token. */
-  private connectionId?: string
+  /** Connection ID assigned by the server for the WebSocket connection. */
+  public connectionId?: string
 
   /**
    * Create a WebSocketFunctions instance with string ID.
