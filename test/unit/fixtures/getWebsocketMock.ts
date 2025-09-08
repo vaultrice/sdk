@@ -3,7 +3,7 @@ import { NonLocalStorage } from '../../../src/index'
 import { WebSocket, Server } from 'mock-socket'
 import conns from './connectionsMock'
 import uuid from '../../../src/uuidv4'
-import { CREDENTIALS, WEBSOCKET } from '../../../src/symbols'
+import { CREDENTIALS, WEBSOCKET, EVENT_HANDLERS } from '../../../src/symbols'
 
 const ws = {}
 let server
@@ -192,7 +192,8 @@ export default () => {
           }
           return new Promise<WebSocket>((resolve) => {
             ws[roomKey][this.id][apiKey].addEventListener('open', () => {
-              this.isConnected = true
+              // this.isConnected = true
+              // Don't set isConnected = true here - wait for handshake
               resolve(ws[roomKey][this.id][apiKey])
             }, { once: true })
           })
@@ -208,12 +209,45 @@ export default () => {
         resolveConnect = resolve
       })
       this[WEBSOCKET].addEventListener('open', () => {
-        this.isConnected = true
+        // this.isConnected = true
+        // Don't set isConnected = true here - wait for handshake
         if (typeof resolveConnect === 'function') resolveConnect(ws[roomKey][this.id][apiKey])
       }, { once: true })
       this[WEBSOCKET].addEventListener('close', () => {
         this.isConnected = false
       }, { once: true })
+
+      // Set up the control message handler to process server handshake
+      this[WEBSOCKET].addEventListener('message', (evt) => {
+        let parsed: any
+        try {
+          parsed = typeof evt.data === 'string' ? JSON.parse(evt.data) : undefined
+        } catch (e) {
+          return
+        }
+        if (!parsed || typeof parsed !== 'object') return
+
+        const evName = parsed.event
+        if (!evName) return
+
+        // Handle server handshake - set connectionId and fire connect event
+        if ((evName === 'connected' || evName === 'resume:ack') && parsed.connectionId) {
+          this.connectionId = parsed.connectionId
+          this.isConnected = true
+
+          // Fire the 'connect' event now that we have a connectionId
+          const connectHandlers = this[EVENT_HANDLERS]?.get('connect')
+          if (connectHandlers) {
+            for (const entry of connectHandlers) {
+              try {
+                entry.handler()
+              } catch (e: any) {
+                this.logger?.log('error', e)
+              }
+            }
+          }
+        }
+      })
 
       conns[roomKey] ||= {}
       conns[roomKey][this.id] ||= []
