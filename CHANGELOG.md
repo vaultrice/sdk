@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6](https://github.com/vaultrice/sdk/compare/v1.0.5...v1.0.6) - 2025-09-12
+
+- Fix presence system race conditions: `join()` and `leave()` operations are now properly serialized to prevent duplicate messages and ensure correct final state in rapid call sequences
+
 ## [1.0.5](https://github.com/vaultrice/sdk/compare/v1.0.4...v1.0.5) - 2025-09-11
 
 - Improve WebSocket connection reliability by tracking pending event setups

@@ -107,6 +107,18 @@ export default class WebSocketFunctions extends Base {
   /** @internal Storage key for connection resume token. */
   // private resumeStorageKey?: string
 
+  /** @internal Track pending presence operations to prevent race conditions */
+  private pendingPresenceOperation?: 'join' | 'leave'
+
+  /** @internal Data for the most recent join operation (including pending) */
+  private currentJoinData?: JSONObj
+
+  /** @internal Promise for the currently pending presence operation (join or leave) */
+  private pendingPresencePromise?: Promise<void>
+
+  /** @internal Flag to indicate if a leave should be cancelled */
+  private cancelPendingLeave: boolean = false
+
   /** Connection ID assigned by the server for the WebSocket connection. */
   public connectionId?: string
 
@@ -739,7 +751,11 @@ export default class WebSocketFunctions extends Base {
     }
 
     if (this[EVENT_HANDLERS].size === 0 && this[ERROR_HANDLERS].length === 0) {
-      this.disconnect()
+      setTimeout(() => {
+        if (this[EVENT_HANDLERS].size === 0 && this[ERROR_HANDLERS].length === 0) {
+          this.disconnect()
+        }
+      }, 200) // a bit of delay... just to be sure it isnt' a strange automatic unbind (i.e. via React app)
     }
   }
 
@@ -981,9 +997,10 @@ export default class WebSocketFunctions extends Base {
         this[ERROR_HANDLERS].forEach((h: (e: Error) => void) => h(new Error(ev.reason)))
       }
       delete this[WEBSOCKET]
-      const wasJoined = this.hasJoined
-      const lastJoinData = this.lastJoinData
-      if (this.hasJoined) this.hasJoined = false
+      // In the close event handler, capture the current intended state
+      const wasJoined = this.hasJoined || this.pendingPresenceOperation === 'join'
+      const shouldLeave = this.pendingPresenceOperation === 'leave'
+      const rejoinData = shouldLeave ? undefined : (this.currentJoinData || this.lastJoinData)
 
       if (this.autoReconnect) {
         const tryReconnect = async () => {
@@ -1103,8 +1120,8 @@ export default class WebSocketFunctions extends Base {
               //     }
               //   }
               // }
-              if (wasJoined && lastJoinData) {
-                await this.join(lastJoinData)
+              if (wasJoined && !shouldLeave && rejoinData) {
+                await this.join(rejoinData)
               }
             }
 
@@ -1250,24 +1267,65 @@ export default class WebSocketFunctions extends Base {
    * ```
    */
   async join (data: JSONObj): Promise<undefined> {
-    if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
+    // Set pending state IMMEDIATELY to prevent race conditions
+    if (this.pendingPresenceOperation === 'join') {
+      this.currentJoinData = data
+      this.lastJoinData = data
+      // Cancel any pending leave since we want to stay joined with new data
+      this.cancelPendingLeave = true
+      await this.pendingPresencePromise!
+      return
+    }
+
+    // If a leave is in-flight, wait for it to finish first
+    if (this.pendingPresenceOperation === 'leave') {
+      // Cancel the leave since we want to join again
+      this.cancelPendingLeave = true
+      await this.pendingPresencePromise
+    }
+
+    // Set pending state BEFORE any async operations
+    this.pendingPresenceOperation = 'join'
+    this.currentJoinData = data
+    this.lastJoinData = data
+    this.cancelPendingLeave = false
+
+    if (this.getEncryptionHandler && !this.encryptionHandler) {
+      // Reset state on error
+      this.pendingPresenceOperation = undefined
+      throw new Error('Call getEncryptionSettings() first!')
+    }
 
     try {
       await this.throttleManager.throttleOperation()
     } catch (error: any) {
+      // Reset state on error
+      this.pendingPresenceOperation = undefined
       this.logger.log('error', `Request throttled: ${error?.message}`)
       throw error
     }
 
-    this.hasJoined = true
-    this.lastJoinData = data
+    const p = (async () => {
+      const dataToSend = this.encryptionHandler ? await this.encryptionHandler.encrypt(JSON.stringify(this.currentJoinData)) : this.currentJoinData
+      const ws = await this.getWebSocket()
+      const msg: any = { event: 'presence:join', payload: dataToSend }
+      if (this[ENCRYPTION_SETTINGS] && this[ENCRYPTION_SETTINGS].keyVersion > -1) msg.keyVersion = this[ENCRYPTION_SETTINGS].keyVersion
 
-    const dataToSend = this.encryptionHandler ? await this.encryptionHandler.encrypt(JSON.stringify(data)) : data
+      try {
+        ws.send(JSON.stringify(msg))
+        this.hasJoined = true
+      } finally {
+        // clear pending only if still representing join (could have been overridden)
+        if (this.pendingPresenceOperation === 'join') this.pendingPresenceOperation = undefined
+      }
+    })()
 
-    const ws = await this.getWebSocket()
-    const msg = { event: 'presence:join', payload: dataToSend }
-    if (this[ENCRYPTION_SETTINGS] && this[ENCRYPTION_SETTINGS]?.keyVersion > -1) (msg as any).keyVersion = this[ENCRYPTION_SETTINGS]?.keyVersion
-    ws.send(JSON.stringify(msg))
+    this.pendingPresencePromise = p
+    try {
+      await p
+    } finally {
+      this.pendingPresencePromise = undefined
+    }
   }
 
   /**
@@ -1279,7 +1337,27 @@ export default class WebSocketFunctions extends Base {
    * had previously joined.
    */
   async leave (): Promise<undefined> {
-    if (!this.hasJoined) return
+    // If a leave is already in-flight, return the pending promise
+    if (this.pendingPresenceOperation === 'leave') {
+      await this.pendingPresencePromise!
+      return
+    }
+
+    // If a join is in-flight, wait for it and then proceed with leave
+    if (this.pendingPresenceOperation === 'join') {
+      await this.pendingPresencePromise
+
+      // Check if leave was cancelled by a subsequent join
+      if (this.cancelPendingLeave) {
+        this.logger.log('warn', 'leave() cancelled - join called while waiting')
+        return
+      }
+      // After join completes, proceed with leave regardless of hasJoined state
+      // because we know a join just happened
+    } else if (!this.hasJoined) {
+      // No join pending and not joined -> nothing to do
+      return
+    }
 
     try {
       await this.throttleManager.throttleOperation()
@@ -1288,12 +1366,36 @@ export default class WebSocketFunctions extends Base {
       throw error
     }
 
-    this.hasJoined = false
+    // mark leave as pending and reset cancellation flag
+    this.pendingPresenceOperation = 'leave'
+    this.cancelPendingLeave = false  // Reset the flag when starting a new leave operation
 
-    const ws = await this.getWebSocket()
-    const msg = { event: 'presence:leave' }
-    if (this[ENCRYPTION_SETTINGS] && this[ENCRYPTION_SETTINGS]?.keyVersion > -1) (msg as any).keyVersion = this[ENCRYPTION_SETTINGS]?.keyVersion
-    ws.send(JSON.stringify(msg))
+    const p = (async () => {
+      // Double-check cancellation flag before sending
+      if (this.cancelPendingLeave) {
+        this.logger.log('warn', 'leave() cancelled before sending - join called')
+        return
+      }
+
+      const ws = await this.getWebSocket()
+      const msg: any = { event: 'presence:leave' }
+      if (this[ENCRYPTION_SETTINGS] && this[ENCRYPTION_SETTINGS].keyVersion > -1) msg.keyVersion = this[ENCRYPTION_SETTINGS].keyVersion
+
+      try {
+        ws.send(JSON.stringify(msg))
+        this.hasJoined = false
+        this.currentJoinData = undefined
+      } finally {
+        if (this.pendingPresenceOperation === 'leave') this.pendingPresenceOperation = undefined
+      }
+    })()
+
+    this.pendingPresencePromise = p
+    try {
+      await p
+    } finally {
+      this.pendingPresencePromise = undefined
+    }
   }
 
   /**
