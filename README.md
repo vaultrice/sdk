@@ -251,6 +251,85 @@ nls.on('presence:leave', c => {})                // listen for leaves
 
 Messages sent through `nls.send` with `transport: 'ws'` are broadcast to other connected clients (not echoed to sender). `transport: 'http'` reaches all clients including sender.
 
+
+### Verifying User Identity
+
+While the main SDK authentication verifies that your client can connect to an object, you might also need to verify that a user *within* that object is who they say they are. This prevents identity spoofing in multi-user applications like chat rooms.
+
+You can enable this feature in your **Class Settings** in the Vaultrice dashboard. It works for both the `join()` and `send()` methods by passing an optional `auth` object.
+
+There are three modes available:
+
+1. **No Verification (Default):** The server accepts all `join` and `send` calls without user verification.
+2. **User ID Signature Verification:** Your backend signs a specific user ID from your payload. This is great for guaranteeing a user's identity while keeping the rest of the payload flexible.
+3. **JWT Consistency Verification:** Your backend issues a standard JWT. Vaultrice verifies the token and also ensures that any overlapping data between your payload and the token's claims are consistent. This is the most robust option.
+
+#### Example: JWT Verification (Mode 2)
+
+```ts
+// --- On your backend ---
+import jwt from 'jsonwebtoken'
+
+const payload = { 
+  sub: 'user-123',        // The user's unique ID
+  name: 'Alice', 
+  role: 'moderator' 
+}
+const identityToken = jwt.sign(payload, YOUR_PRIVATE_KEY, { algorithm: 'RS256' })
+// Send this token to your client
+
+// --- In your Client-Side SDK ---
+const auth = { identityToken }
+
+// Authenticate when joining
+await nls.join(
+  { sub: 'user-123', name: 'Alice', customData: '...' }, // Payload must be consistent with token
+  auth
+)
+
+// Authenticate when sending a message
+await nls.send(
+  { sub: 'user-123', name: 'Alice', type: 'chat', text: 'Hello!' }, 
+  { auth }
+)
+```
+
+#### Example: User ID Signature (Mode 3)
+
+```ts
+// --- On your backend ---
+import crypto from 'crypto'
+
+const userId = 'user-123'
+const userIdSignature = crypto
+  .createHmac('sha256', YOUR_SECRET_KEY)
+  .update(userId)
+  .digest('hex')
+// Send signature to your client
+
+// --- In your Client-Side SDK ---
+const auth = { 
+  userIdSignature
+}
+
+// Authenticate when joining (userId in payload must match auth.userId)
+await nls.join(
+  { userId: 'user-123', name: 'Alice', role: 'user' },
+  auth
+)
+
+// Authenticate when sending messages
+await nls.send(
+  { userId: 'user-123', type: 'chat', message: 'Hello!' },
+  { auth }
+)
+```
+
+> **Note:** User ID signature verification will not work with encrypted payloads or non-string payloads.
+
+For a complete deep-dive into the security model and configuration options, see our **[Security Guide](https://www.vaultrice.com/docs/security#sf2b)**.
+
+
 -----
 
 <span id="-end-to-end-encryption-e2ee"></span>

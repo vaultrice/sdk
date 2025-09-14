@@ -654,7 +654,7 @@ export default class Base {
    * response parsing, and automatic retries for temporary server errors.
    * @private
    */
-  async request (method: string, path: string, body?: JSONObj | string | string[]): Promise<string | string[] | JSONObj | undefined> {
+  async request (method: string, path: string, body?: JSONObj | string | string[], customHeaders?: Record<string, string>): Promise<string | string[] | JSONObj | undefined> {
     if (!this[CREDENTIALS].accessToken && this.isGettingAccessToken) await this.isGettingAccessToken
     try {
       await this.throttleManager.throttleOperation()
@@ -672,7 +672,8 @@ export default class Base {
       if (!authHeader) throw new Error('No authentication option provided! (apiKey + apiSecret or accessToken)')
 
       const headers: { Authorization: string; [key: string]: string } = {
-        Authorization: authHeader
+        Authorization: authHeader,
+        ...(customHeaders || {}) // <-- Spread the custom headers here
       }
 
       const isStringBody = typeof body === 'string'

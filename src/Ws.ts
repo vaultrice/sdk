@@ -169,7 +169,11 @@ export default class WebSocketFunctions extends Base {
    * Send a message to the server or other clients.
    *
    * @param msg - The message object to send.
-   * @param options - Transport options (WebSocket or HTTP).
+   * @param options - Transport and authentication options.
+   * @param options.transport - Transport method: 'ws' (WebSocket) or 'http'. Defaults to 'ws'.
+   * @param options.auth - Optional authentication credentials for user verification.
+   * @param options.auth.userIdSignature - The signature for Mode 3 user verification.
+   * @param options.auth.identityToken - The JWT token for Mode 2 user verification.
    * @throws Error if encryption is configured but getEncryptionSettings() not called.
    *
    * @remarks
@@ -177,6 +181,8 @@ export default class WebSocketFunctions extends Base {
    * - If `transport: 'http'`, the message is delivered to all clients **including the sender**. The sender will receive their own message via `on('message')`.
    * - Messages are automatically encrypted if encryption is configured.
    * - WebSocket transport is preferred for real-time delivery, but HTTP can be used as fallback.
+   * - User ID signature verification will not work with encrypted payloads or non-string payloads.
+   * - When using `userIdSignature`, the `userId` should also be provided for proper verification.
    *
    * @example
    * ```typescript
@@ -186,23 +192,47 @@ export default class WebSocketFunctions extends Base {
    * // Message sent via HTTP (received by sender)
    * await instance.send({ type: 'chat', message: 'Hello!' }, { transport: 'http' });
    *
-   * // Send via HTTP instead of WebSocket
-   * await instance.send({ data: 'important' }, { transport: 'http' });
+   * // Send with Mode 2 user authentication
+   * await instance.send(
+   *   { type: 'chat', message: 'Hello!', userId: '1234 },
+   *   {
+   *     transport: 'ws',
+   *     auth: { identityToken: 'jwt-token-here' }
+   *   }
+   * );
+   *
+   * // Send with Mode 3 user authentication
+   * await instance.send(
+   *   { type: 'chat', message: 'Hello!', userId: '1234 },
+   *   {
+   *     transport: 'ws',
+   *     auth: {
+   *       userIdSignature: 'signature123'
+   *     }
+   *   }
+   * );
    * ```
    */
-  async send (msg: JSONObj, options: { transport?: 'ws' | 'http' } = { transport: 'ws' }): Promise<undefined> {
+  async send (msg: JSONObj, options: { transport?: 'ws' | 'http', auth?: { userIdSignature?: string; identityToken?: string; } } = { transport: 'ws' }): Promise<undefined> {
     if (this.getEncryptionHandler && !this.encryptionHandler) throw new Error('Call getEncryptionSettings() first!')
 
     const msgToSend = this.encryptionHandler ? await this.encryptionHandler.encrypt(JSON.stringify(msg)) : msg
 
     if (options.transport === 'http') {
+      const customHeaders: Record<string, string> = {}
+      if (options.auth?.identityToken) {
+        customHeaders['x-vaultrice-auth-token'] = options.auth.identityToken
+      }
+      if (options.auth?.userIdSignature) {
+        customHeaders['x-vaultrice-auth-signature'] = options.auth.userIdSignature
+      }
       try {
-        await this.request('POST', `/message/${this.class}/${this.id}`, msgToSend)
+        await this.request('POST', `/message/${this.class}/${this.id}`, msgToSend, customHeaders)
       } catch (e) {
         if (!e || (e as any)?.cause?.code !== 'conflictError.keyVersion.mismatch') throw e
         this.logger.log('warn', 'Your local keyVersion does not match! Will attempt to fetch the new encryption settings...')
         await this.getEncryptionSettings()
-        await this.request('POST', `/message/${this.class}/${this.id}`, msgToSend)
+        await this.request('POST', `/message/${this.class}/${this.id}`, msgToSend, customHeaders)
       }
       return
     }
@@ -214,8 +244,16 @@ export default class WebSocketFunctions extends Base {
       this.logger.log('error', `WebSocket message throttled: ${error?.message}`)
       throw error
     }
-    const wrappedMsg = { event: 'message', payload: msgToSend }
+    const wrappedMsg: any = { event: 'message', payload: msgToSend }
+    if (options.auth) wrappedMsg.auth = options.auth
     if (this[ENCRYPTION_SETTINGS] && this[ENCRYPTION_SETTINGS]?.keyVersion > -1) (wrappedMsg as any).keyVersion = this[ENCRYPTION_SETTINGS]?.keyVersion
+    if (options.auth?.userIdSignature && typeof msgToSend === 'string') {
+      if (this.encryptionHandler) {
+        this.logger.log('warn', 'User id signature verification will not work in combination with e2e encryption.')
+      } else {
+        this.logger.log('warn', 'User id signature verification will not work with this payload.')
+      }
+    }
     // coming on ws:// connection via protocols
     // if (this.idSignature && this.idSignatureKeyVersion !== undefined) {
     //   ;(wrappedMsg as any).idSignature = this.idSignature
@@ -1249,6 +1287,9 @@ export default class WebSocketFunctions extends Base {
    * Join the presence channel to announce this connection to others.
    *
    * @param data - Optional data to associate with this connection.
+   * @param auth - Optional object containing authentication credentials.
+   * @param auth.identityToken - The JWT for Mode 2 verification.
+   * @param auth.userIdSignature - The signature for Mode 3 verification.
    * @throws Error if encryption is configured but getEncryptionSettings() not called.
    *
    * @remarks
@@ -1266,7 +1307,7 @@ export default class WebSocketFunctions extends Base {
    * });
    * ```
    */
-  async join (data: JSONObj): Promise<undefined> {
+  async join (data: JSONObj, auth?: { userIdSignature?: string; identityToken?: string }): Promise<undefined> {
     // Set pending state IMMEDIATELY to prevent race conditions
     if (this.pendingPresenceOperation === 'join') {
       this.currentJoinData = data
@@ -1309,7 +1350,15 @@ export default class WebSocketFunctions extends Base {
       const dataToSend = this.encryptionHandler ? await this.encryptionHandler.encrypt(JSON.stringify(this.currentJoinData)) : this.currentJoinData
       const ws = await this.getWebSocket()
       const msg: any = { event: 'presence:join', payload: dataToSend }
+      if (auth) msg.auth = auth
       if (this[ENCRYPTION_SETTINGS] && this[ENCRYPTION_SETTINGS].keyVersion > -1) msg.keyVersion = this[ENCRYPTION_SETTINGS].keyVersion
+      if (auth?.userIdSignature && typeof dataToSend === 'string') {
+        if (this.encryptionHandler) {
+          this.logger.log('warn', 'User id signature verification will not work in combination with e2e encryption.')
+        } else {
+          this.logger.log('warn', 'User id signature verification will not work with this payload.')
+        }
+      }
 
       try {
         ws.send(JSON.stringify(msg))

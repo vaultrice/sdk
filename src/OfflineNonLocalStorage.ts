@@ -813,7 +813,7 @@ export default async function createOfflineNonLocalStorage (
       }
     },
 
-    async send (msg: any, options: { transport?: 'ws' | 'http' } = { transport: 'ws' }) {
+    async send (msg: any, options: { transport?: 'ws' | 'http', auth?: { userIdSignature?: string; identityToken?: string; } } = { transport: 'ws' }) {
       if (isOnline && nls && typeof nls.send === 'function') {
         return await nls.send(msg, options)
       }
@@ -822,9 +822,9 @@ export default async function createOfflineNonLocalStorage (
       throw new Error('Vaultrice: .send() is not available while offline. It will be available upon reconnection.')
     },
 
-    async join (data: any) {
+    async join (data: any, auth?: { userIdSignature?: string; identityToken?: string }) {
       if (isOnline && nls && typeof nls.join === 'function') {
-        return await nls.join(data)
+        return await nls.join(data, auth)
       }
 
       isOnline = false

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0](https://github.com/vaultrice/sdk/compare/v1.0.6...v1.1.0) - 2025-09-14
+
+### Added
+- **User Authentication for Presence & Messaging**: Added optional `auth` parameter to `join()` and `send()` methods to verify user identity and prevent spoofing in multi-user applications
+- Support for JWT token verification and user ID signature verification modes
+- Enhanced security for chat rooms, collaborative apps, and other multi-user scenarios
+
+### Changed
+- `join()` method signature now accepts optional second parameter: `join(data, auth?)`
+- `send()` method options now include optional `auth` parameter: `send(message, { transport?, auth? })`
+
 ## [1.0.6](https://github.com/vaultrice/sdk/compare/v1.0.5...v1.0.6) - 2025-09-12
 
 - Fix presence system race conditions: `join()` and `leave()` operations are now properly serialized to prevent duplicate messages and ensure correct final state in rapid call sequences
