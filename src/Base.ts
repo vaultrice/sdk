@@ -311,20 +311,38 @@ export default class Base {
         // Handle different error types
         if (error && typeof error === 'object') {
           errorMessage = error.message || error.toString()
-          const code = error?.cause?.code
 
-          if (code && code.indexOf('retry') > -1) {
+          // If server returned an HTTP status code on the error object, retry 5xx
+          const status = error?.status || error?.statusCode || error?.status_code
+          if (typeof status === 'number' && status >= 500 && status < 600) {
             shouldRetry = true
-          } else if (errorMessage) {
-            shouldRetry = retryPatterns.some(pattern =>
-              errorMessage.toLowerCase().includes(pattern.toLowerCase())
-            )
+          }
+
+          const code = error?.cause?.code
+          if (!shouldRetry && code && code.indexOf('retry') > -1) {
+            shouldRetry = true
+          } else if (!shouldRetry && errorMessage) {
+            const lower = errorMessage.toLowerCase()
+            // Retry on common transient messages or explicit 5xx text like "500 - Internal Server Error"
+            if (/^\s*5\d{2}\b/.test(errorMessage) || lower.includes('internal server error')) {
+              shouldRetry = true
+            } else {
+              shouldRetry = retryPatterns.some(pattern =>
+                lower.includes(pattern.toLowerCase())
+              )
+            }
           }
         } else if (typeof error === 'string') {
           errorMessage = error
-          shouldRetry = retryPatterns.some(pattern =>
-            errorMessage.toLowerCase().includes(pattern.toLowerCase())
-          )
+          const lower = errorMessage.toLowerCase()
+          // String errors like "500 - Internal Server Error" should be retried
+          if (/^\s*5\d{2}\b/.test(errorMessage) || lower.includes('internal server error')) {
+            shouldRetry = true
+          } else {
+            shouldRetry = retryPatterns.some(pattern =>
+              lower.includes(pattern.toLowerCase())
+            )
+          }
         } else {
           // Network or other errors
           const isNetworkError = error?.name === 'TypeError' ||
